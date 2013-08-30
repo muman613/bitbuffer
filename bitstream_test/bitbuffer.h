@@ -22,12 +22,36 @@ public:
         }
     };
 
+    /**
+     *  Iterator class.
+     */
+
     class iterator {
     public:
-        iterator() {}
-        iterator(const iterator& copy) {}
-        virtual ~iterator() {}
+        iterator();
+        iterator(const iterator& copy);
+        virtual ~iterator();
+
+        iterator& operator =(const iterator& copy);
+        bool operator == (const iterator& compare);
+        bool operator != (const iterator& compare);
+        bool operator <= (const iterator& compare);
+        bool operator >= (const iterator& compare);
+
+        int         operator *();
+        iterator&   operator++();
+        iterator&   operator++(int postfix);
+        iterator&   operator--();
+        iterator&   operator--(int postfix);
+        iterator&   operator- (int value);
+        iterator&   operator+ (int value);
+    private:
+        friend class bitBuffer;
+
+        bitBuffer*  m_pBitBuffer;
+        int64_t     m_nBitPos;
     };
+
     typedef enum _outputFormat {
         FORMAT_BINARY,
         FORMAT_HEX,
@@ -37,6 +61,10 @@ public:
     bitBuffer(uint8_t* bufStart, uint32_t bufLenBytes);
     bitBuffer(const bitBuffer& copy);
     virtual ~bitBuffer();
+
+    iterator        begin() const;
+    iterator        end() const;
+    iterator        bit_iterator(uint32_t bitpos);
 
     bool            is_bit_set(uint32_t bitpos);
     void            set_bit(uint32_t bitpos);

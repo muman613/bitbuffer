@@ -154,3 +154,184 @@ void bitBuffer::clear_bits(uint32_t bitStart, uint32_t bitEnd) {
     }
     return;
 }
+
+
+bitBuffer::iterator bitBuffer::begin() const {
+    iterator    biter;
+
+    biter.m_pBitBuffer = (bitBuffer*)this;
+    biter.m_nBitPos    = 0L;
+
+    return biter;
+}
+
+bitBuffer::iterator bitBuffer::end() const {
+    iterator    biter;
+
+    biter.m_pBitBuffer = (bitBuffer*)this;
+    biter.m_nBitPos    = (m_nBufLenBits);
+
+    return biter;
+}
+
+
+/*----------------------------------------------------------------------------*/
+
+bitBuffer::iterator::iterator()
+:   m_pBitBuffer(0L),
+    m_nBitPos(-1)
+{
+    //ctor
+}
+
+/**
+ *
+ */
+
+bitBuffer::iterator::iterator(const iterator& copy)
+:   m_pBitBuffer(copy.m_pBitBuffer),
+    m_nBitPos(copy.m_nBitPos)
+{
+    //ctor
+}
+
+/**
+ *
+ */
+
+bitBuffer::iterator::~iterator()
+{
+    //dtor
+}
+
+/**
+ *
+ */
+
+bitBuffer::iterator& bitBuffer::iterator::operator =(const bitBuffer::iterator& copy) {
+
+    m_pBitBuffer = copy.m_pBitBuffer;
+    m_nBitPos    = copy.m_nBitPos;
+
+    return *this;
+}
+
+/**
+ *
+ */
+
+int         bitBuffer::iterator::operator *() {
+
+    if ((m_nBitPos < 0) || (m_nBitPos >= m_pBitBuffer->m_nBufLenBits)) {
+        throw bitBuffer::out_of_range();
+    }
+
+    return (m_pBitBuffer->is_bit_set(m_nBitPos)?1:0);
+}
+
+/**
+ *  Advance (prefix) bit position iterator.
+ */
+
+bitBuffer::iterator&   bitBuffer::iterator::operator++() {
+    m_nBitPos++;
+
+    if (m_nBitPos > m_pBitBuffer->m_nBufLenBits) {
+        throw bitBuffer::out_of_range();
+    }
+
+    return *this;
+}
+
+/**
+ *  Advance (postfix) bit position iterator.
+ */
+
+bitBuffer::iterator&   bitBuffer::iterator::operator++(int postfix) {
+    m_nBitPos++;
+
+    if (m_nBitPos > m_pBitBuffer->m_nBufLenBits) {
+        throw bitBuffer::out_of_range();
+    }
+
+    return *this;
+}
+
+/**
+ *  Decrement bit position iterator.
+ */
+
+bitBuffer::iterator&   bitBuffer::iterator::operator--() {
+    m_nBitPos--;
+
+//    if (m_nBitPos < 0) {
+//        throw bitBuffer::out_of_range();
+//    }
+
+    return *this;
+}
+
+/**
+ *  Decrement bit position iterator.
+ */
+
+bitBuffer::iterator&   bitBuffer::iterator::operator--(int postfix) {
+    m_nBitPos--;
+
+//    if (m_nBitPos < 0) {
+//        throw bitBuffer::out_of_range();
+//    }
+
+    return *this;
+}
+/**
+ *
+ */
+
+bool bitBuffer::iterator::operator == (const iterator& compare) {
+    int bRes = false;
+    if ((m_pBitBuffer == compare.m_pBitBuffer) && (m_nBitPos == compare.m_nBitPos)) {
+        bRes = true;
+    }
+    return bRes;
+}
+
+/**
+ *
+ */
+
+bool bitBuffer::iterator::operator != (const iterator& compare) {
+    int bRes = false;
+    if ((m_pBitBuffer != compare.m_pBitBuffer) || (m_nBitPos != compare.m_nBitPos)) {
+        bRes = true;
+    }
+    return bRes;
+
+}
+
+bool bitBuffer::iterator::operator <= (const iterator& compare) {
+    int bRes = false;
+    if ((m_pBitBuffer == compare.m_pBitBuffer) && (m_nBitPos <= compare.m_nBitPos)) {
+        bRes = true;
+    }
+    return bRes;
+}
+
+bool bitBuffer::iterator::operator >= (const iterator& compare) {
+    int bRes = false;
+    if ((m_pBitBuffer == compare.m_pBitBuffer) && (m_nBitPos >= compare.m_nBitPos)) {
+        bRes = true;
+    }
+    return bRes;
+}
+
+
+bitBuffer::iterator&   bitBuffer::iterator::operator- (int value) {
+    m_nBitPos -= value;
+    return *this;
+}
+
+bitBuffer::iterator&   bitBuffer::iterator::operator+ (int value) {
+    m_nBitPos += value;
+    return *this;
+}
