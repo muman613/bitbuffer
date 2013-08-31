@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_workspace_file>
+	<Workspace title="Workspace">
+		<Project filename="../../../../../mnt/GoFlex/part1/home/muman/dev/bitstream/bitstream_test/bitstream_test.cbp">
+			<Depends filename="../../../../../mnt/GoFlex/part1/home/muman/dev/bitstream/bitbuffer/bitbuffer.cbp" />
+		</Project>
+		<Project filename="../../../../../mnt/GoFlex/part1/home/muman/dev/bitstream/bitbuffer/bitbuffer.cbp" />
+	</Workspace>
+</CodeBlocks_workspace_file>
