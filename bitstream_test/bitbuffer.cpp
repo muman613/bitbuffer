@@ -3,6 +3,10 @@
 #include <string.h>
 #include <string>
 #include <vector>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/mman.h>
 
 #include "bitbuffer.h"
 
@@ -17,7 +21,23 @@ bitBuffer::bitBuffer(string sFilename)
     m_nBufLenBytes(0L),
     m_nBufLenBits(0L)
 {
+    // ctor
+    m_fd = open( sFilename.c_str(), O_RDONLY );
 
+    if (m_fd == -1) {
+        throw system_exception("Error opening file for writing");
+    }
+
+    m_nBufLenBytes = lseek(m_fd, 0, SEEK_END);
+    m_nBufLenBits  = m_nBufLenBytes * 8;
+
+    m_pBufStart = (uint8_t*)mmap(0, m_nBufLenBytes, PROT_READ, MAP_SHARED, m_fd, 0);
+    if (m_pBufStart == MAP_FAILED) {
+        close(m_fd);
+        throw system_exception("Error calling mmap");
+    }
+
+    return;
 }
 
 /**
@@ -26,14 +46,15 @@ bitBuffer::bitBuffer(string sFilename)
 
 bitBuffer::bitBuffer(uint32_t bufLenBytes)
 :   m_pBufStart(0L),
-    m_nBufLenBytes(0L)
+    m_nBufLenBytes(0L),
+    m_fd(-1)
 {
     m_pBufStart     = new uint8_t[bufLenBytes];
     memset(m_pBufStart, 0, bufLenBytes);
     m_nBufLenBytes  = bufLenBytes;
     m_nBufLenBits   = bufLenBytes * 8;
 
-    fprintf(stderr, "bitBuffer::bitBuffer(%d) lenBits %d\n", bufLenBytes, m_nBufLenBits);
+//  fprintf(stderr, "bitBuffer::bitBuffer(%d) lenBits %d\n", bufLenBytes, m_nBufLenBits);
 }
 
 /**
@@ -43,7 +64,8 @@ bitBuffer::bitBuffer(uint32_t bufLenBytes)
 bitBuffer::bitBuffer(uint8_t* bufStart, uint32_t bufLenBytes)
 :   m_pBufStart(0L),
     m_nBufLenBytes(0L),
-    m_nBufLenBits(0L)
+    m_nBufLenBits(0L),
+    m_fd(-1)
 {
     m_pBufStart     = new uint8_t[bufLenBytes];
     memcpy(m_pBufStart, bufStart, bufLenBytes);
@@ -53,10 +75,17 @@ bitBuffer::bitBuffer(uint8_t* bufStart, uint32_t bufLenBytes)
 
 bitBuffer::~bitBuffer() {
     // dtor
-    if (m_pBufStart != 0L) {
-        delete [] m_pBufStart;
-        m_pBufStart = 0L;
-        m_nBufLenBytes = m_nBufLenBits = 0L;
+    if (m_fd != -1) {
+        close(m_fd);
+        if (munmap(m_pBufStart, m_nBufLenBytes) == -1) {
+            throw system_exception("Error unmapping file");
+        }
+    } else {
+        if (m_pBufStart != 0L) {
+            delete [] m_pBufStart;
+            m_pBufStart = 0L;
+            m_nBufLenBytes = m_nBufLenBits = 0L;
+        }
     }
 }
 
@@ -66,13 +95,21 @@ bool bitBuffer::is_bit_set(uint32_t bitpos) {
         uint8_t         bitMask     = BITPOS_TO_BIT_MASK(bitpos);
         uint8_t         data        = m_pBufStart[byteIndex];
 
-        //fprintf(stderr, "is_bit_set(%d) byteIndex %d bitMask %02x\n", bitpos, byteIndex, bitMask);
+//      fprintf(stderr, "is_bit_set(%d) byteIndex %d bitMask %02x\n", bitpos, byteIndex, bitMask);
 
         return ((data & bitMask) != 0L);
     } else {
         throw out_of_range();
     }
 
+}
+
+uint32_t bitBuffer::size() const {
+    return m_nBufLenBytes;
+}
+
+uint32_t bitBuffer::bits() const {
+    return m_nBufLenBits;
 }
 
 void bitBuffer::output_bits(FILE* oFp, OUT_FMT fmt, uint32_t bitStart, uint32_t bitEnd) {
@@ -103,7 +140,7 @@ void bitBuffer::output_bits(FILE* oFp, OUT_FMT fmt, uint32_t bitStart, uint32_t 
         for (uint32_t index = 0 ; index < m_nBufLenBytes ; index++) {
             fprintf(oFp, "%02x ", m_pBufStart[index]);
             cnt++;
-            if ((cnt > 0) && ((cnt % 8) == 0)) {
+            if ((cnt > 0) && ((cnt % 16) == 0)) {
                 fprintf(oFp, "\n");
             }
         }
@@ -326,12 +363,29 @@ bool bitBuffer::iterator::operator >= (const iterator& compare) {
 }
 
 
-bitBuffer::iterator&   bitBuffer::iterator::operator- (int value) {
-    m_nBitPos -= value;
-    return *this;
+bitBuffer::iterator   bitBuffer::iterator::operator- (int value) {
+    bitBuffer::iterator iter;
+
+    iter.m_pBitBuffer = m_pBitBuffer;
+    iter.m_nBitPos    = m_nBitPos - value;
+
+    return iter;
 }
 
-bitBuffer::iterator&   bitBuffer::iterator::operator+ (int value) {
+bitBuffer::iterator   bitBuffer::iterator::operator+ (int value) {
+    bitBuffer::iterator iter;
+
+    iter.m_pBitBuffer = m_pBitBuffer;
+    iter.m_nBitPos    = m_nBitPos + value;
+
+    return iter;
+}
+
+bitBuffer::iterator& bitBuffer::iterator::operator+=(int value) {
     m_nBitPos += value;
+    return *this;
+}
+bitBuffer::iterator& bitBuffer::iterator::operator-=(int value) {
+    m_nBitPos -= value;
     return *this;
 }

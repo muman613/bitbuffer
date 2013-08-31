@@ -6,12 +6,14 @@
 
 using namespace std;
 
+#define MEDIA_FILE "/media/elementary/hevc/ateme/TestATEME4KforTektro_1616.265/TestATEME4KforTektro_1616.265"
 
 int main()
 {
-    bitBuffer       buffer(32);
+
 
 try {
+    bitBuffer       buffer(32);
     buffer.set_bit(0);
     buffer.set_bits(2,4);
     buffer.set_bits(64, 64+9);
@@ -31,6 +33,24 @@ try {
     printf("\n");
     printf("Reverse bits:\n");
     for (iter = (buffer.end() - 1) ; iter >= buffer.begin() ; iter--) {
+        printf("%d", *iter);
+    }
+    printf("\n");
+}
+catch (std::exception& except) {
+    printf("Caught %s exception!\n", except.what());
+}
+
+try {
+    bitBuffer           buffer(MEDIA_FILE);
+    bitBuffer::iterator iter, start, end;
+
+    start = buffer.begin();
+    end   = start + 32 + 16;
+
+    printf("Buffer size = %d\n", buffer.size());
+    buffer.output_bits(stdout, bitBuffer::FORMAT_BINARY);
+    for (iter = start ; iter != end ; iter++) {
         printf("%d", *iter);
     }
     printf("\n");

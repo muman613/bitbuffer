@@ -17,9 +17,19 @@ public:
 
     class invalid_parameter: public std::exception {
     public:
-        const char* whote() const throw() {
+        const char* what() const throw() {
             return "invalid_parameter";
         }
+    };
+
+    class system_exception: public std::exception {
+    public:
+        system_exception(std::string desc) : m_desc(desc) {}
+        virtual ~system_exception() throw() {}
+        const char* what() const throw() {
+            return "system_exception";
+        }
+        std::string m_desc;
     };
 
     /**
@@ -43,11 +53,13 @@ public:
         iterator&   operator++(int postfix);
         iterator&   operator--();
         iterator&   operator--(int postfix);
-        iterator&   operator- (int value);
-        iterator&   operator+ (int value);
+        iterator    operator- (int value);
+        iterator    operator+ (int value);
+        iterator&   operator+=(int value);
+        iterator&   operator-=(int value);
+
     private:
         friend class bitBuffer;
-
         bitBuffer*  m_pBitBuffer;
         int64_t     m_nBitPos;
     };
@@ -61,6 +73,9 @@ public:
     bitBuffer(uint8_t* bufStart, uint32_t bufLenBytes);
     bitBuffer(const bitBuffer& copy);
     virtual ~bitBuffer();
+
+    uint32_t        size() const;
+    uint32_t        bits() const;
 
     iterator        begin() const;
     iterator        end() const;
@@ -77,6 +92,7 @@ private:
     uint8_t*        m_pBufStart;
     uint32_t        m_nBufLenBytes;
     uint32_t        m_nBufLenBits;
+    int             m_fd;
 };
 
 #define BITPOS_TO_BYTE_INDEX(x)     ((x/8))
