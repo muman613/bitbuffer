@@ -2,3 +2,6 @@
 *.layout
 .swo
 .gitignore
+*.save
+*.bak 
+

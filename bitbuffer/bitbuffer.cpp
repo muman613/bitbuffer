@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/mman.h>
-
+#include <errno.h>
 #include "bitbuffer.h"
 
 using namespace std;
@@ -25,7 +25,7 @@ bitBuffer::bitBuffer(string sFilename)
     m_fd = open( sFilename.c_str(), O_RDONLY );
 
     if (m_fd == -1) {
-        throw system_exception("Error opening file for writing");
+        throw system_exception("Error opening file for reading");
     }
 
     m_nBufLenBytes = lseek(m_fd, 0, SEEK_END);
@@ -385,7 +385,31 @@ bitBuffer::iterator& bitBuffer::iterator::operator+=(int value) {
     m_nBitPos += value;
     return *this;
 }
+
 bitBuffer::iterator& bitBuffer::iterator::operator-=(int value) {
     m_nBitPos -= value;
     return *this;
+}
+
+/**
+ *
+ */
+
+uint32_t bitBuffer::iterator::get_bits(int bitCount, bool bConsume) {
+    uint32_t    lastBit = m_nBitPos + bitCount;
+    uint32_t    bits = 0L;
+
+    if (lastBit > m_pBitBuffer->m_nBufLenBits) {
+        throw out_of_range();
+    }
+
+    for (uint32_t index = m_nBitPos ; index < lastBit ; index++) {
+        uint32_t bit = m_pBitBuffer->is_bit_set(index);
+        bits = (bits << 1) | bit;
+    }
+
+    if (bConsume)
+        m_nBitPos += bitCount;
+
+    return bits;
 }

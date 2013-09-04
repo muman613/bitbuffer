@@ -2,9 +2,11 @@
 #define __BITBUFFER_H__
 
 #include <inttypes.h>
+#include <string.h>
 #include <string>
 #include <cmath>
 #include <exception>
+#include <errno.h>
 
 class bitBuffer {
 public:
@@ -24,12 +26,14 @@ public:
 
     class system_exception: public std::exception {
     public:
-        system_exception(std::string desc) : m_desc(desc) {}
+        system_exception(std::string desc) : m_errno(errno),m_desc(desc) { }
         virtual ~system_exception() throw() {}
         const char* what() const throw() {
             return "system_exception";
         }
-        std::string m_desc;
+        const char* strerror() { return ::strerror(m_errno); }
+        int             m_errno;
+        std::string     m_desc;
     };
 
     /**
@@ -41,6 +45,8 @@ public:
         iterator();
         iterator(const iterator& copy);
         virtual ~iterator();
+
+        uint32_t    get_bits(int bitCount, bool bConsume = true);
 
         iterator& operator =(const iterator& copy);
         bool operator == (const iterator& compare);
@@ -57,6 +63,8 @@ public:
         iterator    operator+ (int value);
         iterator&   operator+=(int value);
         iterator&   operator-=(int value);
+
+        uint64_t    pos() const { return m_nBitPos; }
 
     private:
         friend class bitBuffer;
