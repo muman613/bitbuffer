@@ -8,6 +8,8 @@
 #include <exception>
 #include <errno.h>
 
+class nalEntry;
+
 class bitBuffer {
 public:
     class out_of_range : public std::exception {
@@ -47,6 +49,8 @@ public:
         virtual ~iterator();
 
         uint32_t    get_bits(int bitCount, bool bConsume = true);
+        uint32_t    ue(bool bConsume = true);
+        void        byte_align();
 
         iterator& operator =(const iterator& copy);
         bool operator == (const iterator& compare);
@@ -80,6 +84,7 @@ public:
     bitBuffer(uint32_t bufLenBytes);
     bitBuffer(uint8_t* bufStart, uint32_t bufLenBytes);
     bitBuffer(const bitBuffer& copy);
+    bitBuffer();
     virtual ~bitBuffer();
 
     uint32_t        size() const;
@@ -96,7 +101,13 @@ public:
     void            clear_bits(uint32_t bitStart, uint32_t bitEnd);
     void            output_bits(FILE* oFp, OUT_FMT fmt = FORMAT_BINARY, uint32_t bitStart = 0, uint32_t bitEnd = 0);
 
+    bitBuffer       operator + (bitBuffer& operand);
+
 private:
+    friend class nalEntry;
+
+    void            destroy();
+
     uint8_t*        m_pBufStart;
     uint32_t        m_nBufLenBytes;
     uint32_t        m_nBufLenBits;

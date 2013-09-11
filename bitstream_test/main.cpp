@@ -105,25 +105,13 @@ try {
 
     bitBuffer::iterator     bIter = buffer.begin();
 
-#if 1
     printf("bitpos end %ld 0x%lx\n", buffer.end().pos(), buffer.end().pos()/8);
 
     while (bIter != buffer.end()) {
         //fprintf(stderr, "bitpos %ld 0x%lx\n", bIter.pos(), bIter.pos()/8);
         byte_stream_nal_unit( bIter );
     }
-#else
-    for (bIter = buffer.begin() ; bIter != buffer.end() ; ) {
-        uint32_t bits = bIter.get_bits(28, false);
 
-        if (bits == 0x00000001) {
-            printf("STARTCODE @ bitpos %ld (0x%lx)!\n", bIter.pos(), (bIter.pos()/8));
-            bIter += 28;
-        } else {
-            bIter += 1;
-        }
-    }
-#endif
 }
 catch (std::exception& except) {
     printf("Exception! (%s)\n", except.what());
@@ -131,16 +119,28 @@ catch (std::exception& except) {
     return;
 }
 
+void buffer_accumulation() {
+    bitBuffer a(8);
+    bitBuffer b(8);
+    bitBuffer c;
+
+    c = a + b;
+}
+
+
+
 int main()
 {
 
     basic_tests();
 
+#if 0
 #ifdef  FILE_TEST
     file_tests();
 #endif
 
     buffer_tests();
+#endif
 
     return 0;
 }

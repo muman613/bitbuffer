@@ -12,6 +12,13 @@
 
 using namespace std;
 
+bitBuffer::bitBuffer()
+:   m_pBufStart(0L),
+    m_nBufLenBytes(0L),
+    m_nBufLenBits(0L)
+{
+    // ctor
+}
 /**
  *
  */
@@ -75,11 +82,14 @@ bitBuffer::bitBuffer(uint8_t* bufStart, uint32_t bufLenBytes)
 
 bitBuffer::~bitBuffer() {
     // dtor
+#if 1
+    destroy();
+#else
     if (m_fd != -1) {
-        close(m_fd);
         if (munmap(m_pBufStart, m_nBufLenBytes) == -1) {
             throw system_exception("Error unmapping file");
         }
+        close(m_fd);
     } else {
         if (m_pBufStart != 0L) {
             delete [] m_pBufStart;
@@ -87,6 +97,27 @@ bitBuffer::~bitBuffer() {
             m_nBufLenBytes = m_nBufLenBits = 0L;
         }
     }
+#endif
+}
+
+void bitBuffer::destroy() {
+    fprintf(stderr, "bitBuffer::destroy()\n");
+
+    if (m_fd != -1) {
+        if (munmap(m_pBufStart, m_nBufLenBytes) == -1) {
+            throw system_exception("Error unmapping file");
+        }
+        close(m_fd);
+        m_fd = -1;
+    } else {
+        if (m_pBufStart != 0L) {
+            delete [] m_pBufStart;
+        }
+    }
+    m_pBufStart = 0L;
+    m_nBufLenBits = m_nBufLenBytes = 0L;
+
+    return;
 }
 
 bool bitBuffer::is_bit_set(uint32_t bitpos) {
@@ -412,4 +443,43 @@ uint32_t bitBuffer::iterator::get_bits(int bitCount, bool bConsume) {
         m_nBitPos += bitCount;
 
     return bits;
+}
+
+/**
+ *
+ */
+
+uint32_t bitBuffer::iterator::ue(bool bConsume) {
+    uint32_t    codeNum = 0;
+    int         leadingZeroBits = -1;
+    int         b;
+    bitBuffer::iterator oldPos = *this;
+
+    for (b = 0 ; (b == 0) ; leadingZeroBits++) {
+        b = get_bits(1);
+    }
+
+    codeNum = ((1 << leadingZeroBits) - 1) + get_bits(leadingZeroBits);
+
+    if (bConsume == false) {
+        *this = oldPos;
+    }
+
+    return codeNum;
+}
+
+/**
+ *
+ */
+
+void bitBuffer::iterator::byte_align() {
+    if ((m_nBitPos % 8) != 0) {
+        m_nBitPos += (8 - (m_nBitPos % 8));
+    }
+}
+
+bitBuffer bitBuffer::operator+(bitBuffer& operand) {
+    bitBuffer result;
+
+    return result;
 }
