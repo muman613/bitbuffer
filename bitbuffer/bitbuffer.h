@@ -92,7 +92,7 @@ public:
 
     iterator        begin() const;
     iterator        end() const;
-    iterator        bit_iterator(uint32_t bitpos);
+    iterator        bit_iterator(uint64_t bitpos);
 
     bool            is_bit_set(uint32_t bitpos);
     void            set_bit(uint32_t bitpos);
@@ -102,6 +102,8 @@ public:
     void            output_bits(FILE* oFp, OUT_FMT fmt = FORMAT_BINARY, uint32_t bitStart = 0, uint32_t bitEnd = 0);
 
     bitBuffer       operator + (bitBuffer& operand);
+
+    bitBuffer*      get_rbsp(uint64_t bitpos, size_t byteCount);
 
 private:
     friend class nalEntry;

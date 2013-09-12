@@ -16,6 +16,7 @@
 				<Compiler>
 					<Add option="-Wall" />
 					<Add option="-g" />
+					<Add option="-D_DEBUG=1" />
 				</Compiler>
 			</Target>
 			<Target title="Release">

@@ -198,7 +198,7 @@ void bitBuffer::set_bit(uint32_t bitpos) {
 }
 
 void bitBuffer::set_bits(uint32_t bitStart, uint32_t bitEnd) {
-    for (uint32_t index = bitStart ; index < bitEnd ; index++) {
+    for (uint32_t index = bitStart ; index <= bitEnd ; index++) {
         set_bit(index);
     }
     return;
@@ -242,6 +242,47 @@ bitBuffer::iterator bitBuffer::end() const {
     return biter;
 }
 
+bitBuffer::iterator bitBuffer::bit_iterator(uint64_t bitpos) {
+    iterator biter;
+
+    biter.m_pBitBuffer = (bitBuffer*)this;
+    biter.m_nBitPos    = bitpos;
+
+    return biter;
+}
+
+bitBuffer*  bitBuffer::get_rbsp(uint64_t bitPos, size_t byteCount) {
+    bitBuffer*      pBuffer = 0L;
+    uint8_t*        rawBuffer = 0L;
+    size_t          numBytesInRbsp = 0;
+    iterator        bIter = bit_iterator(bitPos);
+    uint32_t        emulation_prevention_three_byte;
+
+#ifdef  _DEBUG
+    fprintf(stderr, "bitBuffer::get_rbsp(%ld, %ld)\n", bitPos, byteCount);
+#endif
+
+    rawBuffer = (uint8_t*)malloc(byteCount);
+
+    for (size_t i = 2 ; i < byteCount ; i++) {
+        if (((i+2) < byteCount) && (bIter.get_bits(24, false) == 0x000003)) {
+            rawBuffer[numBytesInRbsp++] = bIter.get_bits(8);
+            rawBuffer[numBytesInRbsp++] = bIter.get_bits(8);
+            i += 2;
+            emulation_prevention_three_byte = bIter.get_bits(8);
+        } else {
+            rawBuffer[numBytesInRbsp++] = bIter.get_bits(8);
+        }
+    }
+
+    rawBuffer = (uint8_t*)realloc(rawBuffer, numBytesInRbsp);
+
+    pBuffer = new bitBuffer(rawBuffer, numBytesInRbsp);
+
+    free(rawBuffer);
+
+    return pBuffer;
+}
 
 /*----------------------------------------------------------------------------*/
 
