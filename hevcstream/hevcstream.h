@@ -4,6 +4,11 @@
 #include "bitbuffer.h"
 #include "nalentry.h"
 
+
+typedef struct _parameter_set_array {
+    nalEntry*       pps[32];
+} PARM_SET_ARRAY;
+
 class hevcstream
 {
     public:
@@ -25,6 +30,7 @@ class hevcstream
         void                    byte_stream_nal_unit();
 
     private:
+        void                    clear_parameter_set_arrays();
         void                    calculate_nal_sizes();
 
         std::string             m_stream_path;
@@ -34,6 +40,10 @@ class hevcstream
         size_t                  m_nal_count;
         NALENTRY_PTR_VECTOR     m_nalVec;
         size_t                  m_lastbit;
+
+        PARM_SET_ARRAY          m_vps;      ///< Video parameter set array
+        PARM_SET_ARRAY          m_sps;      ///< Sequence parameter set array
+        PARM_SET_ARRAY          m_pps;      ///< Picture parameter set array
 };
 
 #endif // __HEVCSTREAM_H__

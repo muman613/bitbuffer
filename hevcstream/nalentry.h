@@ -60,12 +60,21 @@ typedef struct _sequence_parameter_set_struct {
 /* ... */
 } SEQ_PARAMETER_SET;
 
+typedef struct _picture_parameter_set_struct {
+    uint32_t            pps_pic_parameter_set_id;
+    uint32_t            pps_seq_parameter_set_id;
+    uint32_t            dependent_slice_segments_enabled_flag;
+    uint32_t            output_flag_present_flag;
+    uint32_t            num_extra_slice_header_bits;
+    uint32_t            sign_data_hiding_enabled_flag;
+    uint32_t            cabac_init_present_flag;
+} PIC_PARAMETER_SET;
+
 typedef struct _slice_segment_header {
-    uint32_t pps_pic_parameter_set_id;
-    uint32_t pps_seq_parameter_set_id;
-    uint32_t dependent_slice_segments_enabled_flag;
-    uint32_t output_flag_present_flag;
-    uint32_t num_extra_slice_header_bits;
+    uint32_t            first_slice_segment_in_pic_flag;
+    uint32_t            no_output_of_prior_pics_flag;
+    uint32_t            slice_pic_parameter_set_id;
+/* ... */
 } SLICE_SEGMENT_HDR;
 
 /**
@@ -97,6 +106,7 @@ public:
     size_t      nal_index_num() const;
     size_t      nal_picture_num() const;
     eNalType    nal_type() const;
+    void*       info() const;
 
 #if defined(_DEBUG) && defined(ENABLE_RBSP_SAVE)
     void        save_rbsp_buffer(bitBuffer* pBuffer);
