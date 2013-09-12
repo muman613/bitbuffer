@@ -80,28 +80,23 @@ bitBuffer::bitBuffer(uint8_t* bufStart, uint32_t bufLenBytes)
     m_nBufLenBits   = bufLenBytes * 8;
 }
 
+/**
+ *  Bit Buffer destructor.
+ */
+
 bitBuffer::~bitBuffer() {
     // dtor
-#if 1
     destroy();
-#else
-    if (m_fd != -1) {
-        if (munmap(m_pBufStart, m_nBufLenBytes) == -1) {
-            throw system_exception("Error unmapping file");
-        }
-        close(m_fd);
-    } else {
-        if (m_pBufStart != 0L) {
-            delete [] m_pBufStart;
-            m_pBufStart = 0L;
-            m_nBufLenBytes = m_nBufLenBits = 0L;
-        }
-    }
-#endif
 }
 
+/**
+ *  Destroy bit buffer.
+ */
+
 void bitBuffer::destroy() {
+#ifdef  _DEBUG
     fprintf(stderr, "bitBuffer::destroy()\n");
+#endif
 
     if (m_fd != -1) {
         if (munmap(m_pBufStart, m_nBufLenBytes) == -1) {
@@ -120,6 +115,10 @@ void bitBuffer::destroy() {
     return;
 }
 
+/**
+ *  Check if a bit is set.
+ */
+
 bool bitBuffer::is_bit_set(uint32_t bitpos) {
     if (bitpos < m_nBufLenBits) {
         uint32_t        byteIndex   = BITPOS_TO_BYTE_INDEX(bitpos);
@@ -135,13 +134,25 @@ bool bitBuffer::is_bit_set(uint32_t bitpos) {
 
 }
 
+/**
+ *  Return the number of bytes in the buffer.
+ */
+
 uint32_t bitBuffer::size() const {
     return m_nBufLenBytes;
 }
 
+/**
+ *  Return the number of bits in the buffer.
+ */
+
 uint32_t bitBuffer::bits() const {
     return m_nBufLenBits;
 }
+
+/**
+ *  Output binary or hexadecimal dump of bit buffer.
+ */
 
 void bitBuffer::output_bits(FILE* oFp, OUT_FMT fmt, uint32_t bitStart, uint32_t bitEnd) {
     uint32_t cnt = 0;
@@ -185,6 +196,10 @@ void bitBuffer::output_bits(FILE* oFp, OUT_FMT fmt, uint32_t bitStart, uint32_t 
     return;
 }
 
+/**
+ *  Set a bit to one.
+ */
+
 void bitBuffer::set_bit(uint32_t bitpos) {
     if (bitpos < m_nBufLenBits) {
         uint32_t        byteIndex   = BITPOS_TO_BYTE_INDEX(bitpos);
@@ -197,12 +212,20 @@ void bitBuffer::set_bit(uint32_t bitpos) {
     return;
 }
 
+/**
+ *  Set multiple bits.
+ */
+
 void bitBuffer::set_bits(uint32_t bitStart, uint32_t bitEnd) {
     for (uint32_t index = bitStart ; index <= bitEnd ; index++) {
         set_bit(index);
     }
     return;
 }
+
+/**
+ *  Clear a bit to zero.
+ */
 
 void bitBuffer::clear_bit(uint32_t bitpos) {
     if (bitpos < m_nBufLenBits) {
@@ -216,6 +239,10 @@ void bitBuffer::clear_bit(uint32_t bitpos) {
     return;
 }
 
+/**
+ *  Clear multiple bits.
+ */
+
 void bitBuffer::clear_bits(uint32_t bitStart, uint32_t bitEnd) {
     for (uint32_t index = bitStart ; index < bitEnd ; index++) {
         clear_bit(index);
@@ -223,6 +250,9 @@ void bitBuffer::clear_bits(uint32_t bitStart, uint32_t bitEnd) {
     return;
 }
 
+/**
+ *  Return a bit iterator set to the beginning of the buffer.
+ */
 
 bitBuffer::iterator bitBuffer::begin() const {
     iterator    biter;
@@ -232,6 +262,10 @@ bitBuffer::iterator bitBuffer::begin() const {
 
     return biter;
 }
+
+/**
+ *  Return a bit iterator set to the end of the buffer.
+ */
 
 bitBuffer::iterator bitBuffer::end() const {
     iterator    biter;
@@ -250,6 +284,10 @@ bitBuffer::iterator bitBuffer::bit_iterator(uint64_t bitpos) {
 
     return biter;
 }
+
+/**
+ *  Return a bitbuffer which has been scrubbed of 0x000003 sequences.
+ */
 
 bitBuffer*  bitBuffer::get_rbsp(uint64_t bitPos, size_t byteCount) {
     bitBuffer*      pBuffer = 0L;
@@ -284,7 +322,9 @@ bitBuffer*  bitBuffer::get_rbsp(uint64_t bitPos, size_t byteCount) {
     return pBuffer;
 }
 
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+/*  Iterator functions                                                      */
+/*--------------------------------------------------------------------------*/
 
 bitBuffer::iterator::iterator()
 :   m_pBitBuffer(0L),
