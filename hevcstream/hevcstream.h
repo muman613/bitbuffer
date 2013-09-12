@@ -25,6 +25,8 @@ class hevcstream
         void                    byte_stream_nal_unit();
 
     private:
+        void                    calculate_nal_sizes();
+
         std::string             m_stream_path;
         bitBuffer*              m_bitBuffer;
         bitBuffer::iterator     m_bIter;

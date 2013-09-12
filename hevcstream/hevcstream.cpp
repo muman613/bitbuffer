@@ -63,30 +63,12 @@ void hevcstream::byte_stream_nal_unit() {
 #endif
 
     //printf("STARTCODE @ bit %ld Byte 0x%lx!\n", m_bIter.pos(), m_bIter.pos()/8);
-#if 1
     NAL_ENTRY*      nal = 0L;
 
     nal = new nalEntry(m_bIter, m_nal_count++);
     assert(nal != 0L);
 
-    if (nal->isFirstFrameInSlice()) {
-        m_picture_count++;
-    }
-
-    nal->set_picture_number( m_picture_count );
-
     m_nalVec.push_back( nal );
-#else
-    NAL_ENTRY       nal(m_bIter);
-
-    nal.set_picture_number( m_picture_count );
-
-    if (nal.isFirstFrameInSlice()) {
-        m_picture_count++;
-    }
-
-    m_nalVec.push_back(nal);
-#endif
 
 try {
     while ((m_bIter.get_bits(24, false) != 0x000001) && (m_bIter.get_bits(32,false) != 0x00000001)) {
@@ -113,23 +95,38 @@ void hevcstream::parse_bitstream() {
 try {
     m_bIter = m_bitBuffer->begin();
 
+#ifdef  _DEBUG
+    fprintf(stderr, "-- SCANNING STARTCODES...\n");
+#endif
+
     while (m_bIter != m_bitBuffer->end()) {
         //fprintf(stderr, "bitpos %ld 0x%lx\n", bIter.pos(), bIter.pos()/8);
         byte_stream_nal_unit( );
     }
 
-    for (size_t x = 1 ; x < m_nalVec.size() ; x++) {
-        uint64_t    bitDiff = m_nalVec[x]->offset() - m_nalVec[x-1]->offset();
-        m_nalVec[x-1]->set_size(bitDiff / 8);
+    calculate_nal_sizes();
+
+    for (size_t x = 0 ; x < m_nalVec.size() ; x++) {
+        m_nalVec[x]->parse_nal(m_bitBuffer);
+#if 1
+        if (m_nalVec[x]->isFirstFrameInSlice()) {
+            m_picture_count++;
+        }
+#endif
+        m_nalVec[x]->set_picture_number( ((int)m_picture_count > 0)?m_picture_count:0 );
+#if 0
+        if (m_nalVec[x]->isFirstFrameInSlice()) {
+            m_picture_count++;
+        }
+#endif
     }
-    m_nalVec[m_nalVec.size() - 1]->set_size((m_lastbit - m_nalVec[m_nalVec.size() - 2]->offset()) / 8);
 }
 catch (bitBuffer::system_exception& except) {
     fprintf(stderr, "%s\n", except.m_desc.c_str());
     fprintf(stderr, "%s\n", except.strerror());
 }
 catch (std::exception& except) {
-    fprintf(stderr, "ERROR: Caught exception!\n");
+    fprintf(stderr, "ERROR: Caught exception [%s]!\n", except.what());
 }
     return;
 }
@@ -155,6 +152,9 @@ bool hevcstream::Open(std::string sInputFilename) {
         m_bitBuffer = new bitBuffer( m_stream_path );
         assert(m_bitBuffer != 0L);
         m_lastbit = m_bitBuffer->bits();
+#ifdef  _DEBUG
+        fprintf(stderr, "m_lastbit = %ld (Byte offset %08lx)\n", m_lastbit, m_lastbit/8);
+#endif
         parse_bitstream();
         bRes = true;
     } else {
@@ -181,7 +181,7 @@ void hevcstream::Close() {
         delete m_nalVec[x];
     }
     m_nalVec.clear();
-    m_picture_count = 0;
+    m_picture_count = -1;
 
     return;
 }
@@ -192,7 +192,7 @@ void hevcstream::dump_nal_vector(FILE* oFP, nalEntry::DUMP_TYPE type) {
     fprintf(stderr, "hevcstream::dump_nal_vector(%p)\n", oFP);
 #endif
     if (m_nalVec.size() > 0) {
-
+        fprintf(oFP, "Input Stream  : %s\n", m_stream_path.c_str());
         fprintf(oFP, "NAL Count     : %ld\n", m_nalVec.size());
         fprintf(oFP, "Picture Count : %ld\n", m_picture_count + 1);
 
@@ -210,3 +210,22 @@ void hevcstream::dump_nal_vector(FILE* oFP, nalEntry::DUMP_TYPE type) {
     return;
 }
 //#endif
+
+void hevcstream::calculate_nal_sizes() {
+    uint64_t    bitDiff;
+#ifdef  _DEBUG
+    fprintf(stderr, "-- CALCULATING NAL SIZES...\n");
+#endif
+
+    /* Calculate NAL sizes */
+    for (size_t x = 1 ; x < m_nalVec.size() ; x++) {
+        bitDiff = m_nalVec[x]->offset() - m_nalVec[x-1]->offset();
+        m_nalVec[x-1]->set_size(bitDiff / 8);
+    }
+//    fprintf(stderr, "-- calculate final nal --\n");
+//    fprintf(stderr, " m_lastbit = %ld\n", m_lastbit);
+//    fprintf(stderr, " last nal offset = %ld\n", m_nalVec[m_nalVec.size() - 1]->offset());
+    m_nalVec[m_nalVec.size() - 1]->set_size((m_lastbit - m_nalVec[m_nalVec.size() - 1]->offset()) / 8);
+
+    return;
+}
