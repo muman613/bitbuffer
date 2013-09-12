@@ -1,3 +1,7 @@
+/**
+ *  @note : This project exists as a test bench for the bitbuffer class.
+ */
+
 #include <stdio.h>
 #include <iostream>
 #include <string.h>
@@ -7,16 +11,21 @@
 
 using namespace std;
 
+#define BASIC_TEST      1
+//#define BUFFER_TEST     1
 //#define FILE_TEST
 #define MEDIA_FILE "/media/elementary/hevc/ateme/TestATEME4KforTektro_1616.265/TestATEME4KforTektro_1616.265"
 
+#ifdef  BASIC_TEST
 void basic_tests() {
     printf("---BASIC TESTS---\n");
 try {
     bitBuffer       buffer(32);
     buffer.set_bit(0);
-    buffer.set_bits(2,4);
-    buffer.set_bits(64, 64+9);
+    buffer.set_bits(2,3);
+    buffer.set_bit(6);
+    buffer.set_bit(8);
+    buffer.set_bits(64, 64+8);
     buffer.set_bit(250);
     buffer.set_bit(255);
     buffer.output_bits(stdout, bitBuffer::FORMAT_HEX);
@@ -41,14 +50,25 @@ try {
 
     uint32_t bits = iter.get_bits(6, true);
 
-    printf("%0x\n", bits);
+    printf("6 bits from beginning of buffer : %0x\n", bits);
+
+    iter = buffer.begin();
+
+    bits = iter.ue();
+    printf("ue(v) = %x\n", bits);
+    bits = iter.ue();
+    printf("ue(v) = %x\n", bits);
+    bits = iter.ue();
+    printf("ue(v) = %x\n", bits);
 }
 catch (std::exception& except) {
     printf("Caught %s exception!\n", except.what());
 }
     return;
 }
+#endif  // BASIC_TEST
 
+#ifdef  FILE_TEST
 void file_tests() {
     printf("---FILE TESTS---\n");
 try {
@@ -70,7 +90,9 @@ catch (std::exception& except) {
 }
     return;
 }
+#endif  // FILE_TEST
 
+#ifdef  BUFFER_TEST
 void byte_stream_nal_unit(bitBuffer::iterator& iter) {
     //fprintf(stderr, "byte_stream_nal_unit()\n");
 
@@ -119,6 +141,9 @@ catch (std::exception& except) {
     return;
 }
 
+#endif  // BUFFER_TEST
+
+#if 0
 void buffer_accumulation() {
     bitBuffer a(8);
     bitBuffer b(8);
@@ -126,19 +151,22 @@ void buffer_accumulation() {
 
     c = a + b;
 }
+#endif
 
 
 
 int main()
 {
 
+#ifdef  BASIC_TEST
     basic_tests();
+#endif
 
-#if 0
 #ifdef  FILE_TEST
     file_tests();
 #endif
 
+#ifdef  BUFFER_TEST
     buffer_tests();
 #endif
 
