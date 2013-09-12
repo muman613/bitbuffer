@@ -9,6 +9,8 @@
 		<Project filename="index_startcodes/index_startcodes.cbp">
 			<Depends filename="bitbuffer/bitbuffer.cbp" />
 		</Project>
-		<Project filename="hevcstream/hevcstream.cbp" />
+		<Project filename="hevcstream/hevcstream.cbp">
+			<Depends filename="bitbuffer/bitbuffer.cbp" />
+		</Project>
 	</Workspace>
 </CodeBlocks_workspace_file>
