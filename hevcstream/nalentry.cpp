@@ -17,9 +17,10 @@
 nalEntry::nalEntry()
 :   m_bit_offset(-1),
     m_nalSize(0),
-    m_first_slice_segment_in_pic_flag(0),
+//    m_first_slice_segment_in_pic_flag(0),
     m_nal_num(0),
     m_picture_num(0),
+    m_long_sc(0),
     m_pNalInfo(0L),
     m_nalInfo_size(0)
 {
@@ -30,10 +31,10 @@ nalEntry::nalEntry()
  *
  */
 
-nalEntry::nalEntry(bitBuffer::iterator& bIter, size_t nalNum)
-:   m_first_slice_segment_in_pic_flag(0),
-    m_nal_num(nalNum),
+nalEntry::nalEntry(bitBuffer::iterator& bIter, bool longsc, size_t nalNum)
+:   m_nal_num(nalNum),
     m_picture_num(0),
+    m_long_sc(longsc),
     m_pNalInfo(0L),
     m_nalInfo_size(0)
 {
@@ -66,9 +67,10 @@ nalEntry::nalEntry(const nalEntry& copy) {
     m_bit_offset                        = copy.m_bit_offset;
     m_nalSize                           = copy.m_nalSize;
     m_nal_unit_header                   = copy.m_nal_unit_header;
-    m_first_slice_segment_in_pic_flag   = copy.m_first_slice_segment_in_pic_flag;
+//    m_first_slice_segment_in_pic_flag   = copy.m_first_slice_segment_in_pic_flag;
     m_nal_num                           = copy.m_nal_num;
     m_picture_num                       = copy.m_picture_num;
+    m_long_sc                           = copy.m_long_sc;
 
     /* copy associated nal info data */
     m_pNalInfo = malloc(copy.m_nalInfo_size);
@@ -84,15 +86,15 @@ nalEntry::nalEntry(const nalEntry& copy) {
 nalEntry::~nalEntry()
 {
     //dtor
-//#ifdef  _DEBUG
-//    fprintf(stderr, "nalEntry::~nalEntry()\n");
-//#endif
+#ifdef  _DEBUG
+    fprintf(stderr, "nalEntry::~nalEntry()\n");
+#endif
     if (m_pNalInfo != 0) {
-//#ifdef  _DEBUG
-//        fprintf(stderr, "-- freeing %s nal info @ %p !\n",
-//                get_nal_type_desc(m_nal_unit_header.nal_unit_type),
-//                m_pNalInfo);
-//#endif
+#ifdef  _DEBUG
+        fprintf(stderr, "-- freeing %s nal info @ %p !\n",
+                get_nal_type_desc(m_nal_unit_header.nal_unit_type),
+                m_pNalInfo);
+#endif
         free(m_pNalInfo);
         m_pNalInfo = 0L;
     }
@@ -159,16 +161,17 @@ void nalEntry::set_size(uint32_t size) {
  *
  */
 
-void nalEntry::display(FILE* oFP, DUMP_TYPE type) {
-    if (type == DUMP_SHORT) {
-        fprintf(oFP, "  %-6ld %-6d %-16s (0x%02x) %-8ld %08lx %-8ld %-5s %-4s %d\n",
+void nalEntry::display(FILE* oFP, int type) {
+    if ((type & DUMP_SHORT) != 0) {
+        fprintf(oFP, "  %-6ld %-6d %-16s (0x%02x) %-8ld %08lx %-8ld %-5s %-4s %d %s\n",
                 m_nal_num, m_picture_num,
                 get_nal_type_desc(m_nal_unit_header.nal_unit_type), (int)m_nal_unit_header.nal_unit_type,
                 m_bit_offset, m_bit_offset/8, m_nalSize,
                 isVCL()?"Yes":"No",
                 isFirstFrameInSlice()?"Yes":"No",
-                m_nal_unit_header.nuh_temporal_id_plus1 - 1);
-    } else if (type == DUMP_LONG) {
+                m_nal_unit_header.nuh_temporal_id_plus1 - 1,
+                m_long_sc?"32":"24");
+    } else if ((type & DUMP_LONG) != 0) {
         fprintf(oFP, "NAL # %ld:\n", m_nal_num);
         fprintf(oFP, "  NAL TYPE    : %-20s (0x%04x)\n", get_nal_type_desc(m_nal_unit_header.nal_unit_type), (int)m_nal_unit_header.nal_unit_type);
         fprintf(oFP, "  NAL OFF     : Bit %ld (0x%lx)\n", m_bit_offset, m_bit_offset/8);
@@ -190,7 +193,6 @@ bool nalEntry::video_parameter_set_rbsp(bitBuffer::iterator& bIter) {
     fprintf(stderr, "nalEntry::video_parameter_set()\n");
 #endif
 
-#if 1
     VIDEO_PARAMETER_SET*    vps;
 
     vps = (VIDEO_PARAMETER_SET*)calloc(1, sizeof(VIDEO_PARAMETER_SET));
@@ -215,34 +217,6 @@ bool nalEntry::video_parameter_set_rbsp(bitBuffer::iterator& bIter) {
     fprintf(stderr, "vps_reserved_0xffff_16bits   : %x\n", vps->vps_reserved_0xffff_16bits);
 #endif
 
-#else
-    uint32_t vps_video_parameter_set_id;
-    uint32_t vps_reserved_three_2bits;
-    uint32_t vps_max_layers_minus1;
-    uint32_t vps_max_sub_layers_minus1;
-    uint32_t vps_temporal_id_nesting_flag;
-    uint32_t vps_reserved_0xffff_16bits;
-
-
-
-    vps_video_parameter_set_id      = bIter.get_bits(4);
-    vps_reserved_three_2bits        = bIter.get_bits(2);
-    vps_max_layers_minus1           = bIter.get_bits(6);
-    vps_max_sub_layers_minus1       = bIter.get_bits(3);
-    vps_temporal_id_nesting_flag    = bIter.get_bits(1);
-    vps_reserved_0xffff_16bits      = bIter.get_bits(16);
-
-#ifdef _DEBUG
-    fprintf(stderr, "vps_video_parameter_set_id   : %x\n", vps_video_parameter_set_id);
-    fprintf(stderr, "vps_reserved_three_2bits     : %x\n", vps_reserved_three_2bits);
-    fprintf(stderr, "vps_max_layers_minus1        : %x\n", vps_max_layers_minus1);
-    fprintf(stderr, "vps_max_sub_layers_minus1    : %x\n", vps_max_sub_layers_minus1);
-    fprintf(stderr, "vps_temporal_id_nesting_flag : %x\n", vps_temporal_id_nesting_flag);
-    fprintf(stderr, "vps_reserved_0xffff_16bits   : %x\n", vps_reserved_0xffff_16bits);
-#endif
-
-#endif
-
     return true;
 }
 
@@ -255,7 +229,6 @@ bool nalEntry::sequence_parameter_set_rbsp(bitBuffer::iterator& bIter) {
     fprintf(stderr, "nalEntry::sequence_parameter_set()\n");
 #endif
 
-#if 1
     SEQ_PARAMETER_SET*      sps = 0L;
 
     sps = (SEQ_PARAMETER_SET*)calloc(1, sizeof(SEQ_PARAMETER_SET));
@@ -289,45 +262,6 @@ bool nalEntry::sequence_parameter_set_rbsp(bitBuffer::iterator& bIter) {
     fprintf(stderr, "pic_width_in_luma_samples          : %d\n", sps->pic_width_in_luma_samples);
     fprintf(stderr, "pic_height_in_luma_samples         : %d\n", sps->pic_height_in_luma_samples);
 #endif
-#else
-    uint32_t    sps_video_parameter_set_id;
-    uint32_t    sps_max_sub_layers_minus1;
-    uint32_t    sps_temporal_id_nesting_flag;
-    uint32_t    sps_seq_parameter_set_id;
-    uint32_t    chroma_format_idc;
-    uint32_t    seperate_color_plane_flag;
-    uint32_t    pic_width_in_luma_samples,
-                pic_height_in_luma_samples;
-
-    sps_video_parameter_set_id      = bIter.get_bits(4);
-    sps_max_sub_layers_minus1       = bIter.get_bits(3);
-    sps_temporal_id_nesting_flag    = bIter.get_bits(1);
-
-#ifdef  _DEBUG
-    fprintf(stderr, "sps_video_parameter_set_id         : %x\n", sps_video_parameter_set_id);
-    fprintf(stderr, "sps_max_sub_layers_minus1          : %x\n", sps_max_sub_layers_minus1);
-    fprintf(stderr, "sps_temporal_id_nesting_flag       : %x\n", sps_temporal_id_nesting_flag);
-#endif
-
-    profile_tier_level( bIter, sps_max_sub_layers_minus1 );
-
-    sps_seq_parameter_set_id        = bIter.ue();
-    chroma_format_idc               = bIter.ue();
-
-    if (chroma_format_idc == 3) {
-        seperate_color_plane_flag = bIter.get_bits(1);
-    }
-
-    pic_width_in_luma_samples = bIter.ue();
-    pic_height_in_luma_samples = bIter.ue();
-
-#ifdef _DEBUG
-    fprintf(stderr, "sps_seq_parameter_set_id           : %x\n", sps_seq_parameter_set_id);
-    fprintf(stderr, "chroma_format_idc                  : %x\n", chroma_format_idc);
-    fprintf(stderr, "pic_width_in_luma_samples          : %d\n", pic_width_in_luma_samples);
-    fprintf(stderr, "pic_height_in_luma_samples         : %d\n", pic_height_in_luma_samples);
-#endif
-#endif
 
     bIter.byte_align();
     return true;
@@ -342,7 +276,6 @@ bool nalEntry::picture_parameter_set_rbsp(bitBuffer::iterator& bIter) {
     fprintf(stderr, "nalEntry::picture_parameter_set()\n");
 #endif
 
-#if 1
     PIC_PARAMETER_SET*          pps = 0L;
 
     pps = (PIC_PARAMETER_SET *)calloc(1, sizeof(PIC_PARAMETER_SET));
@@ -367,29 +300,6 @@ bool nalEntry::picture_parameter_set_rbsp(bitBuffer::iterator& bIter) {
     fprintf(stderr, "num_extra_slice_header_bits             : %x\n", pps->num_extra_slice_header_bits);
     fprintf(stderr, "sign_data_hiding_enabled_flag           : %x\n", pps->sign_data_hiding_enabled_flag);
     fprintf(stderr, "cabac_init_present_flag                 : %x\n", pps->cabac_init_present_flag);
-#endif
-
-#else
-    uint32_t pps_pic_parameter_set_id;
-    uint32_t pps_seq_parameter_set_id;
-    uint32_t dependent_slice_segments_enabled_flag;
-    uint32_t output_flag_present_flag;
-    uint32_t num_extra_slice_header_bits;
-
-
-    pps_pic_parameter_set_id                = bIter.ue();
-    pps_seq_parameter_set_id                = bIter.ue();
-    dependent_slice_segments_enabled_flag   = bIter.get_bits(1);
-    output_flag_present_flag                = bIter.get_bits(1);
-    num_extra_slice_header_bits             = bIter.get_bits(1);
-
-#ifdef  _DEBUG
-    fprintf(stderr, "pps_pic_parameter_set_id                : %x\n", pps_pic_parameter_set_id);
-    fprintf(stderr, "pps_seq_parameter_set_id                : %x\n", pps_seq_parameter_set_id);
-    fprintf(stderr, "dependent_slice_segments_enabled_flag   : %x\n", dependent_slice_segments_enabled_flag);
-    fprintf(stderr, "output_flag_present_flag                : %x\n", output_flag_present_flag);
-    fprintf(stderr, "num_extra_slice_header_bits             : %x\n", num_extra_slice_header_bits);
-#endif
 #endif
 
     bIter.byte_align();
@@ -420,7 +330,6 @@ bool nalEntry::slice_segment_header(bitBuffer::iterator& bIter) {
     fprintf(stderr, "nalEntry::slice_segment_header()\n");
 #endif
 
-#if 1
     SLICE_SEGMENT_HDR*      shdr = 0L;
 
     shdr = (SLICE_SEGMENT_HDR*)calloc(1, sizeof(SLICE_SEGMENT_HDR));
@@ -442,27 +351,7 @@ bool nalEntry::slice_segment_header(bitBuffer::iterator& bIter) {
     fprintf(stderr, "slice_pic_parameter_set_id      : %x\n", shdr->slice_pic_parameter_set_id);
 #endif
 
-#else
-    //uint32_t first_slice_segment_in_pic_flag;
-    uint32_t no_output_of_prior_pics_flag = 0;
-
-
-
-    m_first_slice_segment_in_pic_flag = bIter.get_bits(1);
-
-    if ((m_nal_unit_header.nal_unit_type >= NAL_BLA_W_LP) && (m_nal_unit_header.nal_unit_type <= NAL_RSV_IRAP_VCL23))
-        no_output_of_prior_pics_flag = bIter.get_bits(1);
-
-
-#ifdef  _DEBUG
-    fprintf(stderr, "first_slice_segment_in_pic_flag : %x\n", m_first_slice_segment_in_pic_flag);
-    fprintf(stderr, "no_output_of_prior_pics_flag    : %x\n", no_output_of_prior_pics_flag);
-#endif
-
-#endif
-
     bIter.byte_align();
-
 
     return true;
 }
@@ -476,7 +365,6 @@ bool nalEntry::profile_tier_level(bitBuffer::iterator& bIter, uint32_t maxNumSub
     fprintf(stderr, "nalEntry::profile_tier_level(..., %d)\n", maxNumSubLayersMinus1);
 #endif
 
-#if 1
     PROFILE_TIER_LEVEL*     ptl = &(((SEQ_PARAMETER_SET *)m_pNalInfo)->sps_profile);
 
     ptl->general_profile_space = bIter.get_bits(2);
@@ -549,111 +437,6 @@ bool nalEntry::profile_tier_level(bitBuffer::iterator& bIter, uint32_t maxNumSub
     }
 #endif
 
-#else
-
-    uint32_t        general_profile_space;
-    uint32_t        general_tier_flag;
-    uint32_t        general_profile_idc;
-    uint32_t        general_profile_compatibility_flag[32];
-    uint32_t        general_progressive_source_flag;
-    uint32_t        general_interlaced_source_flag;
-    uint32_t        general_non_packed_constraint_flag;
-    uint32_t        general_frame_only_constraint_flag;
-    uint32_t        general_reserved_zero_44bits[2];
-    uint32_t        general_level_idc;
-    uint32_t        sub_layer_profile_present_flag[maxNumSubLayersMinus1];
-    uint32_t        sub_layer_level_present_flag[maxNumSubLayersMinus1];
-    uint32_t        sub_layer_level_idc[maxNumSubLayersMinus1];
-
-    uint32_t        sub_layer_profile_space[maxNumSubLayersMinus1];
-    uint32_t        sub_layer_tier_flag[maxNumSubLayersMinus1];
-    uint32_t        sub_layer_profile_idc[maxNumSubLayersMinus1];
-    uint32_t        sub_layer_profile_compatibility_flag[maxNumSubLayersMinus1][ 32 ];
-    uint32_t        sub_layer_progressive_source_flag[maxNumSubLayersMinus1];
-    uint32_t        sub_layer_interlaced_source_flag[maxNumSubLayersMinus1];
-    uint32_t        sub_layer_non_packed_constraint_flag[maxNumSubLayersMinus1];
-    uint32_t        sub_layer_frame_only_constraint_flag[maxNumSubLayersMinus1];
-    uint32_t        sub_layer_reserved_zero_44bits[maxNumSubLayersMinus1][2];
-
-
-
-
-    general_profile_space = bIter.get_bits(2);
-    general_tier_flag     = bIter.get_bits(1);
-    general_profile_idc   = bIter.get_bits(5);
-
-#ifdef _DEBUG
-    fprintf(stderr, "general_profile_space             : %x\n", general_profile_space);
-    fprintf(stderr, "general_tier_flag                 : %x\n", general_tier_flag);
-    fprintf(stderr, "general_profile_idc               : %x\n", general_profile_idc);
-#endif
-
-    for (int j = 0 ; j < 32 ; j++) {
-        general_profile_compatibility_flag[j] = bIter.get_bits(1);
-#ifdef _DEBUG
-        fprintf(stderr, "general_profile_compatibility_flag[%d] : %x\n", j, general_profile_compatibility_flag[j]);
-#endif
-    }
-
-    general_progressive_source_flag     = bIter.get_bits(1);
-    general_interlaced_source_flag      = bIter.get_bits(1);
-    general_non_packed_constraint_flag  = bIter.get_bits(1);
-    general_frame_only_constraint_flag  = bIter.get_bits(1);
-    general_reserved_zero_44bits[0]     = bIter.get_bits(32);
-    general_reserved_zero_44bits[1]     = bIter.get_bits(12);
-    general_level_idc                   = bIter.get_bits(8);
-
-#ifdef _DEBUG
-    fprintf(stderr,"general_progressive_source_flag    : %x\n", general_progressive_source_flag);
-    fprintf(stderr,"general_interlaced_source_flag     : %x\n", general_interlaced_source_flag);
-    fprintf(stderr,"general_non_packed_constraint_flag : %x\n", general_non_packed_constraint_flag);
-    fprintf(stderr,"general_frame_only_constraint_flag : %x\n", general_frame_only_constraint_flag);
-    fprintf(stderr,"general_reserved_zero_44bits[0]    : %x\n", general_reserved_zero_44bits[0]);
-    fprintf(stderr,"general_reserved_zero_44bits[1]    : %x\n", general_reserved_zero_44bits[1]);
-    fprintf(stderr,"general_level_idc                  : %x\n", general_level_idc);
-#endif
-
-    for (size_t i = 0 ; i < maxNumSubLayersMinus1 ; i++) {
-        sub_layer_profile_present_flag[i] = bIter.get_bits(1);
-        sub_layer_level_present_flag[i]   = bIter.get_bits(1);
-#ifdef  _DEBUG
-        fprintf(stderr, "sub_layer_profile_present_flag[%ld]   : %x\n", i, sub_layer_profile_present_flag[i]);
-        fprintf(stderr, "sub_layer_level_present_flag[%ld]     : %x\n", i, sub_layer_level_present_flag[i]);
-#endif
-    }
-
-    if (maxNumSubLayersMinus1 > 0) {
-        for (size_t i = maxNumSubLayersMinus1 ; i < 8 ; i++) {
-            uint32_t reserved_zero_2bits = bIter.get_bits(2);
-#ifdef  _DEBUG
-    fprintf(stderr,"reserved_zero_2bits                : %x\n", reserved_zero_2bits);
-#endif
-        }
-    }
-
-    for (size_t i = 0 ; i < maxNumSubLayersMinus1 ; i++) {
-        if (sub_layer_profile_present_flag[i] == 1) {
-            sub_layer_profile_space[i]              = bIter.get_bits(2);
-            sub_layer_tier_flag[i]                  = bIter.get_bits(1);
-            sub_layer_profile_idc[i]                = bIter.get_bits(5);
-
-            for (size_t j = 0 ; j < 32 ; j++)
-                sub_layer_profile_compatibility_flag[i][j] = bIter.get_bits(1);
-
-            sub_layer_progressive_source_flag[i]    = bIter.get_bits(1);
-            sub_layer_interlaced_source_flag[i]     = bIter.get_bits(1);
-            sub_layer_non_packed_constraint_flag[i] = bIter.get_bits(1);
-            sub_layer_frame_only_constraint_flag[i] = bIter.get_bits(1);
-            sub_layer_reserved_zero_44bits[i][0]    = bIter.get_bits(32);
-            sub_layer_reserved_zero_44bits[i][1]    = bIter.get_bits(12);
-        }
-
-        if (sub_layer_level_present_flag[i] == 1) {
-            sub_layer_level_idc[i] = bIter.get_bits(8);
-        }
-    }
-#endif
-
     return true;
 }
 
@@ -701,6 +484,15 @@ bool nalEntry::parse_nal(bitBuffer* pBuffer) {
     fprintf(stderr, "nalEntry::parse_nal()\n");
 #endif
 
+    if ((m_nal_unit_header.nal_unit_type == NAL_EOS_NUT) || (m_nal_unit_header.nal_unit_type == NAL_EOB_NUT)) {
+        return true;
+    }
+
+    if (m_nalSize < 4) {
+        fprintf(stderr, "ERROR: NAL too small to parse rbsp [type %s]...\n", get_nal_type_desc(m_nal_unit_header.nal_unit_type));
+        return false;
+    }
+
     bitBuffer*      rbsp_buffer = pBuffer->get_rbsp(m_bit_offset + 16, m_nalSize - 3);
     bitBuffer::iterator bIter = rbsp_buffer->begin(); // = pBuffer->bit_iterator( m_bit_offset ) + 16;
 
@@ -739,9 +531,13 @@ bool nalEntry::parse_nal(bitBuffer* pBuffer) {
         case NAL_RASL_R:
             slice_segment_layer_rbsp(bIter);
             break;
+        case NAL_RADL_N:
+        case NAL_RADL_R:
+            slice_segment_layer_rbsp(bIter);
+            break;
         default:
 #ifdef  _DEBUG
-            fprintf(stderr, "WARNING : Unhandled NAL type!\n");
+            fprintf(stderr, "WARNING : Unhandled NAL type [%s]!\n", get_nal_type_desc(m_nal_unit_header.nal_unit_type));
 #endif
             break;
     }

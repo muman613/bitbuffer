@@ -12,6 +12,8 @@
 
 class hevcstream;
 
+/* Video Parameter Set structure */
+
 typedef struct _video_parameter_set_struct {
     uint32_t        vps_video_parameter_set_id;
     uint32_t        vps_reserved_three_2bits;
@@ -19,7 +21,10 @@ typedef struct _video_parameter_set_struct {
     uint32_t        vps_max_sub_layers_minus1;
     uint32_t        vps_temporal_id_nesting_flag;
     uint32_t        vps_reserved_0xffff_16bits;
+/* ... */
 } VIDEO_PARAMETER_SET;
+
+/* Profile Tier Level structure */
 
 typedef struct _profile_tier_level_struct {
     uint32_t        general_profile_space;
@@ -47,6 +52,8 @@ typedef struct _profile_tier_level_struct {
     uint32_t        sub_layer_reserved_zero_44bits[MAX_SUBLAYERS_MINUS1][2];
 } PROFILE_TIER_LEVEL;
 
+/* Sequence Parameter Set structure */
+
 typedef struct _sequence_parameter_set_struct {
     uint32_t            sps_video_parameter_set_id;
     uint32_t            sps_max_sub_layers_minus1;
@@ -60,6 +67,8 @@ typedef struct _sequence_parameter_set_struct {
 /* ... */
 } SEQ_PARAMETER_SET;
 
+/* Picture Parameter Set structure */
+
 typedef struct _picture_parameter_set_struct {
     uint32_t            pps_pic_parameter_set_id;
     uint32_t            pps_seq_parameter_set_id;
@@ -68,6 +77,7 @@ typedef struct _picture_parameter_set_struct {
     uint32_t            num_extra_slice_header_bits;
     uint32_t            sign_data_hiding_enabled_flag;
     uint32_t            cabac_init_present_flag;
+/* ... */
 } PIC_PARAMETER_SET;
 
 typedef struct _slice_segment_header {
@@ -78,27 +88,29 @@ typedef struct _slice_segment_header {
 } SLICE_SEGMENT_HDR;
 
 /**
- *
+ *  Class representing a NAL unit.
  */
 
 typedef class nalEntry {
 public:
     nalEntry();
     nalEntry(const nalEntry& copy);
-    nalEntry(bitBuffer::iterator& bIter, size_t nalNum);
+    nalEntry(bitBuffer::iterator& bIter, bool longsc, size_t nalNum);
     virtual ~nalEntry();
 
-    typedef enum _dumpType {
-        DUMP_SHORT,
-        DUMP_LONG,
-    } DUMP_TYPE;
+    typedef enum _dumpFlags {
+        DUMP_SHORT      = (1L << 0),
+        DUMP_LONG       = (1L << 1),
+        DUMP_EXTRA      = (1L << 2),
+    } DUMP_FLAGS;
 
-    void        display(FILE* oFP, DUMP_TYPE type = DUMP_SHORT);
+    void        display(FILE* oFP, int type = DUMP_SHORT);
 
     bool        isFirstFrameInSlice();
     bool        isVCL();
-    void        set_picture_number(int picnum);
     uint64_t    offset();
+
+    void        set_picture_number(int picnum);
     void        set_size(uint32_t nalSize);
 
     bool        copy_nal_to_file(bitBuffer& buffer, FILE* oFP);
@@ -128,15 +140,17 @@ protected:
 
     uint64_t    m_bit_offset;
     size_t      m_nalSize;
-    int         m_first_slice_segment_in_pic_flag;
     size_t      m_nal_num;
     int         m_picture_num;
+    bool        m_long_sc;
 
     NALU_HDR    m_nal_unit_header;
 
     void*       m_pNalInfo;
     size_t      m_nalInfo_size;
 } NAL_ENTRY;
+
+/* Vector definitions */
 
 typedef std::vector<NAL_ENTRY>              NALENTRY_VECTOR;
 typedef std::vector<NAL_ENTRY*>             NALENTRY_PTR_VECTOR;
