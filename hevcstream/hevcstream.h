@@ -4,9 +4,10 @@
 #include "bitbuffer.h"
 #include "nalentry.h"
 
+#define MAX_PARMSET_ID      64
 
 typedef struct _parameter_set_array {
-    nalEntry*       pps[32];
+    nalEntry*       psa[MAX_PARMSET_ID];
 } PARM_SET_ARRAY;
 
 class hevcstream
@@ -22,8 +23,14 @@ class hevcstream
         bool                    IsOpen();
 
 //#ifdef  _DEBUG
-        void                    dump_nal_vector(FILE* oFP, nalEntry::DUMP_TYPE type = nalEntry::DUMP_SHORT);
+        void                    dump_nal_vector(FILE* oFP, int type = nalEntry::DUMP_SHORT);
 //#endif
+
+        size_t                  picture_count() const;
+        size_t                  nal_count() const;
+
+        bool                    save_parm_set(FILE* oFP);
+        bool                    save_nal_to_file(size_t nalindex, FILE* oFP);
 
     protected:
         void                    parse_bitstream();

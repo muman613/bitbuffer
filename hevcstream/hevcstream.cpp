@@ -19,7 +19,18 @@ hevcstream::hevcstream()
 hevcstream::~hevcstream()
 {
     //dtor
+#ifdef  _DEBUG
+    fprintf(stderr, "hevcstream::~hevcstream()\n");
+#endif
     Close();
+}
+
+size_t hevcstream::picture_count() const {
+    return m_picture_count;
+}
+
+size_t hevcstream::nal_count() const {
+    return m_nal_count;
 }
 
 /**
@@ -51,6 +62,8 @@ void hevcstream::clear_parameter_set_arrays() {
  */
 
 void hevcstream::byte_stream_nal_unit() {
+    bool bLongSC = false;
+
 #ifdef  _DEBUG
     fprintf(stderr, "byte_stream_nal_unit() bitpos %ld (0x%lx)\n", m_bIter.pos(), m_bIter.pos()/8);
 #endif
@@ -67,6 +80,7 @@ void hevcstream::byte_stream_nal_unit() {
 #ifdef  _DEBUG
         fprintf(stderr, "zero_byte %x\n", zero_byte);
 #endif
+        bLongSC = true;
     }
 
 #ifdef _DEBUG
@@ -82,7 +96,7 @@ void hevcstream::byte_stream_nal_unit() {
     //printf("STARTCODE @ bit %ld Byte 0x%lx!\n", m_bIter.pos(), m_bIter.pos()/8);
     NAL_ENTRY*      nal = 0L;
 
-    nal = new nalEntry(m_bIter, m_nal_count++);
+    nal = new nalEntry(m_bIter, bLongSC, m_nal_count++);
     assert(nal != 0L);
 
     m_nalVec.push_back( nal );
@@ -110,15 +124,20 @@ void hevcstream::parse_bitstream() {
     assert(m_bitBuffer != 0L);
 
 try {
-    m_bIter = m_bitBuffer->begin();
+    try {
+        m_bIter = m_bitBuffer->begin();
 
-#ifdef  _DEBUG
-    fprintf(stderr, "-- SCANNING STARTCODES --\n");
-#endif
+    #ifdef  _DEBUG
+        fprintf(stderr, "-- SCANNING STARTCODES --\n");
+    #endif
 
-    while (m_bIter != m_bitBuffer->end()) {
-        //fprintf(stderr, "bitpos %ld 0x%lx\n", bIter.pos(), bIter.pos()/8);
-        byte_stream_nal_unit( );
+        while (m_bIter != m_bitBuffer->end()) {
+            //fprintf(stderr, "bitpos %ld 0x%lx\n", bIter.pos(), bIter.pos()/8);
+            byte_stream_nal_unit( );
+        }
+    }
+    catch (std::exception& except) {
+        //fprintf(stderr, "ERROR: Caught exception [%s] during scanning!\n", except.what());
     }
 
     calculate_nal_sizes();
@@ -136,20 +155,26 @@ try {
         }
         m_nalVec[x]->set_picture_number( ((int)m_picture_count > 0)?m_picture_count:0 );
 
+#if 1
         eNalType nalType = m_nalVec[x]->nal_type();
 
         if (nalType == NAL_VPS_NUT) {
             VIDEO_PARAMETER_SET*    vps     = (VIDEO_PARAMETER_SET*)m_nalVec[x]->info();
             int                     vps_id  = vps->vps_video_parameter_set_id;
 
+            m_vps.psa[vps_id] = m_nalVec[x];
         } else if (nalType == NAL_SPS_NUT) {
             SEQ_PARAMETER_SET*      sps     = (SEQ_PARAMETER_SET*)m_nalVec[x]->info();
             int                     sps_id  = sps->sps_seq_parameter_set_id;
 
+            m_sps.psa[sps_id] = m_nalVec[x];
         } else if (nalType == NAL_PPS_NUT) {
             PIC_PARAMETER_SET*      pps     = (PIC_PARAMETER_SET*)m_nalVec[x]->info();
             int                     pps_id  = pps->pps_pic_parameter_set_id;
+
+            m_pps.psa[pps_id] = m_nalVec[x];
         }
+#endif
     }
 }
 catch (bitBuffer::system_exception& except) {
@@ -157,7 +182,7 @@ catch (bitBuffer::system_exception& except) {
     fprintf(stderr, "%s\n", except.strerror());
 }
 catch (std::exception& except) {
-    fprintf(stderr, "ERROR: Caught exception [%s]!\n", except.what());
+    fprintf(stderr, "ERROR: Caught exception [%s] during parsing!\n", except.what());
 }
     return;
 }
@@ -174,10 +199,12 @@ bool hevcstream::Open(std::string sInputFilename) {
     fprintf(stderr, "hevcstream::Open(%s)\n", sInputFilename.c_str());
 #endif
 
+    /* If hevc object already opened, close it... */
     if (m_bitBuffer != 0) {
         Close();
     }
 
+    /* Make sure the file exists... */
     if (stat(sInputFilename.c_str(), &statbuf) == 0) {
         m_stream_path = sInputFilename;
         m_bitBuffer = new bitBuffer( m_stream_path );
@@ -203,6 +230,7 @@ void hevcstream::Close() {
 #ifdef  _DEBUG
     fprintf(stderr, "hevcstream::Close()\n");
 #endif
+
     if (m_bitBuffer != 0) {
         delete m_bitBuffer;
         m_bitBuffer = 0L;
@@ -212,7 +240,9 @@ void hevcstream::Close() {
         delete m_nalVec[x];
     }
     m_nalVec.clear();
+
     m_picture_count = -1;
+    m_nal_count     = 0;
 
     clear_parameter_set_arrays();
 
@@ -223,7 +253,7 @@ void hevcstream::Close() {
  *  Dump the NAL info to a stream.
  */
 
-void hevcstream::dump_nal_vector(FILE* oFP, nalEntry::DUMP_TYPE type) {
+void hevcstream::dump_nal_vector(FILE* oFP, int type) {
 #ifdef  _DEBUG
     fprintf(stderr, "hevcstream::dump_nal_vector()\n");
 #endif
@@ -233,7 +263,7 @@ void hevcstream::dump_nal_vector(FILE* oFP, nalEntry::DUMP_TYPE type) {
         fprintf(oFP, "NAL Count     : %ld\n", m_nalVec.size());
         fprintf(oFP, "Picture Count : %ld\n", m_picture_count + 1);
 
-        if (type == nalEntry::DUMP_SHORT) {
+        if ((type & nalEntry::DUMP_SHORT) != 0) {
 //"  %-6d %-6d %-12s (0x%02x) %-8ld  %-8ld %-5s %s\n",
             fprintf(oFP, "  %-6s %-6s %-16s %-6s %-8s %-8s %-8s %-5s %s\n",
                     "NAL#", "PIC#", "TYPE", "TYP", "BITPOS", "BYTE","SIZE", "VCL", "FIRST");
@@ -241,9 +271,29 @@ void hevcstream::dump_nal_vector(FILE* oFP, nalEntry::DUMP_TYPE type) {
         NALENTRY_PTR_VECTOR_ITER    nIter;
         uint32_t                    index = 0;
         for (nIter = m_nalVec.begin() ; nIter != m_nalVec.end() ; nIter++, index++) {
-            (*nIter)->display(oFP, type);
+            (*nIter)->display(oFP, type & 0x1);
         }
     }
+
+#if 0
+    if ((type & nalEntry::DUMP_EXTRA) != 0) {
+        for (size_t i = 0 ; i < MAX_PARMSET_ID ; i++) {
+            if (m_vps.psa[i] != 0) {
+                fprintf(oFP, "vps[%2ld] = %p\n", i, m_vps.psa[i]);
+                m_vps.psa[i]->display(oFP, nalEntry::DUMP_LONG);
+            }
+            if (m_sps.psa[i] != 0) {
+                fprintf(oFP, "sps[%2ld] = %p\n", i, m_sps.psa[i]);
+                m_sps.psa[i]->display(oFP, nalEntry::DUMP_LONG);
+            }
+            if (m_pps.psa[i] != 0) {
+                fprintf(oFP, "pps[%2ld] = %p\n", i, m_pps.psa[i]);
+                m_pps.psa[i]->display(oFP, nalEntry::DUMP_LONG);
+            }
+        }
+    }
+#endif
+
     return;
 }
 
@@ -268,4 +318,28 @@ void hevcstream::calculate_nal_sizes() {
     m_nalVec[m_nalVec.size() - 1]->set_size((m_lastbit - m_nalVec[m_nalVec.size() - 1]->offset()) / 8);
 
     return;
+}
+
+/**
+ *
+ */
+
+bool hevcstream::save_parm_set(FILE* oFP) {
+    bool bRes = false;
+
+    if (IsOpen()) {
+        for (size_t i = 0 ; i < 32 ; i++) {
+            if (m_vps.psa[i] != 0) {
+                m_vps.psa[i]->copy_nal_to_file(*m_bitBuffer, oFP);
+            }
+            if (m_sps.psa[i] != 0) {
+                m_sps.psa[i]->copy_nal_to_file(*m_bitBuffer, oFP);
+            }
+        }
+    }
+    return bRes;
+}
+
+bool hevcstream::save_nal_to_file(size_t nalindex, FILE* oFP) {
+    return false;
 }
