@@ -8,6 +8,7 @@ using namespace std;
 
 string      sInputFilename;
 int         picture_num = 0;
+bool        bDump = false;
 
 /**
  *
@@ -17,7 +18,7 @@ bool parse_args(int argc, char* argv[]) {
     int     opt;
     bool    bRes = false;
 
-    while ((opt = getopt(argc, argv, "i:f:")) != -1) {
+    while ((opt = getopt(argc, argv, "i:f:d")) != -1) {
         switch (opt) {
         case 'i':
             sInputFilename = optarg;
@@ -27,8 +28,12 @@ bool parse_args(int argc, char* argv[]) {
             picture_num = atoi( optarg );
             break;
 
+        case 'd':
+            bDump = true;
+            break;
+
         default:
-            fprintf(stderr, "Usage: %s [-i filename] [-f picture_num]\n", argv[0]);
+            fprintf(stderr, "Usage: %s [-i filename] [-f picture_num] [-d]\n", argv[0]);
             break;
         }
     }
@@ -54,7 +59,9 @@ int main(int argc, char* argv[]) {
 #endif
 
     if (hevcObj.Open( sInputFilename )) {
-        hevcObj.dump_nal_vector( stdout, nalEntry::DUMP_SHORT );
+        if (bDump)
+            hevcObj.dump_nal_vector( stdout, nalEntry::DUMP_SHORT | nalEntry::DUMP_EXTRA );
     }
+
     return 0;
 }
