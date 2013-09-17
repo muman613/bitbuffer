@@ -119,6 +119,7 @@ public:
     size_t      nal_picture_num() const;
     eNalType    nal_type() const;
     void*       info() const;
+//    int         sc_size() const;
 
 #if defined(_DEBUG) && defined(ENABLE_RBSP_SAVE)
     void        save_rbsp_buffer(bitBuffer* pBuffer);

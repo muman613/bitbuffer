@@ -155,7 +155,6 @@ try {
         }
         m_nalVec[x]->set_picture_number( ((int)m_picture_count > 0)?m_picture_count:0 );
 
-#if 1
         eNalType nalType = m_nalVec[x]->nal_type();
 
         if (nalType == NAL_VPS_NUT) {
@@ -174,7 +173,6 @@ try {
 
             m_pps.psa[pps_id] = m_nalVec[x];
         }
-#endif
     }
 }
 catch (bitBuffer::system_exception& except) {
@@ -310,7 +308,7 @@ void hevcstream::calculate_nal_sizes() {
     /* Calculate NAL sizes */
     for (size_t x = 1 ; x < m_nalVec.size() ; x++) {
         bitDiff = m_nalVec[x]->offset() - m_nalVec[x-1]->offset();
-        m_nalVec[x-1]->set_size(bitDiff / 8);
+        m_nalVec[x-1]->set_size(bitDiff / 8 + (m_nalVec[x]->m_long_sc?0:1));
     }
 //    fprintf(stderr, "-- calculate final nal --\n");
 //    fprintf(stderr, " m_lastbit = %ld\n", m_lastbit);
@@ -341,5 +339,113 @@ bool hevcstream::save_parm_set(FILE* oFP) {
 }
 
 bool hevcstream::save_nal_to_file(size_t nalindex, FILE* oFP) {
+
+    if ((nalindex >= 0) && (nalindex <= nal_count())) {
+        m_nalVec[nalindex]->copy_nal_to_file(*m_bitBuffer, oFP);
+    }
     return false;
+}
+
+bool hevcstream::get_ps_to_frame(size_t frame,
+                                 PARM_SET_ARRAY& vpsAr,
+                                 PARM_SET_ARRAY& spsAr,
+                                 PARM_SET_ARRAY& ppsAr)
+{
+#ifdef  _DEBUG
+    fprintf(stderr, "hevcstream::get_ps_to_frame(%ld, ...)\n", frame);
+#endif
+
+    assert(frame <= picture_count());
+
+    memset(&vpsAr, 0, sizeof(PARM_SET_ARRAY));
+    memset(&spsAr, 0, sizeof(PARM_SET_ARRAY));
+    memset(&ppsAr, 0, sizeof(PARM_SET_ARRAY));
+
+    for (size_t x = 0 ; ((x < m_nalVec.size()) && (m_nalVec[x]->nal_picture_num() <= frame)) ; x++) {
+        nalEntry*   pNal = m_nalVec[x];
+        assert(pNal != 0L);
+        eNalType    nalType = pNal->nal_type();
+
+        if (nalType == NAL_VPS_NUT) {
+            VIDEO_PARAMETER_SET*    vps     = (VIDEO_PARAMETER_SET*)pNal->info();
+            int                     vps_id  = vps->vps_video_parameter_set_id;
+
+            vpsAr.psa[vps_id] = pNal;
+        } else if (nalType == NAL_SPS_NUT) {
+            SEQ_PARAMETER_SET*      sps     = (SEQ_PARAMETER_SET*)pNal->info();
+            int                     sps_id  = sps->sps_seq_parameter_set_id;
+
+            spsAr.psa[sps_id] = pNal;
+        } else if (nalType == NAL_PPS_NUT) {
+            PIC_PARAMETER_SET*      pps     = (PIC_PARAMETER_SET*)pNal->info();
+            int                     pps_id  = pps->pps_pic_parameter_set_id;
+
+            ppsAr.psa[pps_id] = pNal;
+        }
+    }
+
+    return true;
+}
+
+
+/**
+ *
+ */
+
+bool hevcstream::get_nals_to_frame(size_t framenum, NALENTRY_PTR_VECTOR& nalVec) {
+    nalEntry            *pFirstIndex = 0L,
+                        *pThisIndex = 0L;
+    NALENTRY_PTR_VECTOR frameVec;
+    eNalType        type;
+
+#ifdef  _DEBUG
+    fprintf(stderr, "hevcstream::get_nals_to_frame(%ld, ...)\n", framenum);
+#endif
+
+    for (size_t x = 0 ; x < m_nalVec.size() ; x++) {
+        if (m_nalVec[x]->isFirstFrameInSlice()) {
+            frameVec.push_back( m_nalVec[x] );
+        }
+    }
+
+#ifdef  _DEBUG
+    fprintf(stderr, "FRAME VECTOR:\n");
+    for (size_t x = 0 ; x < frameVec.size() ; x++) {
+        fprintf(stderr, "FRAME %ld starts at NAL %ld\n", x, frameVec[x]->nal_index_num());
+    }
+#endif
+
+    pThisIndex = frameVec[framenum];
+
+    for (size_t frame = framenum ; frame >= 0 ; frame--) {
+        pFirstIndex = frameVec[frame];
+        type        = pFirstIndex->nal_type();
+
+        if ((type >= NAL_BLA_W_LP) && (type <= NAL_CRA_NUT)) {
+            break;
+        }
+    }
+
+#ifdef  _DEBUG
+    fprintf(stderr, "Starting frame : Index %ld Frame %ld\n",
+            pFirstIndex->nal_index_num(), pFirstIndex->nal_picture_num());
+#endif
+
+    if (pFirstIndex != pThisIndex) {
+        for (size_t x = pFirstIndex->nal_index_num() ; x < pThisIndex->nal_index_num() ; x++) {
+#ifdef  _DEBUG
+            fprintf(stderr, "Copy NAL # %ld\n", x);
+#endif
+            if (m_nalVec[x]->isVCL())
+                nalVec.push_back( m_nalVec[x] );
+        }
+    }
+    for (size_t x = pThisIndex->nal_index_num() ; ((x < m_nalVec.size()) && (m_nalVec[x]->nal_picture_num() <= (framenum + 1))) ; x++) {
+#ifdef  _DEBUG
+        fprintf(stderr, "Copy NAL # %ld\n", x);
+#endif
+        if (m_nalVec[x]->isVCL())
+            nalVec.push_back( m_nalVec[x] );
+    }
+    return true;
 }

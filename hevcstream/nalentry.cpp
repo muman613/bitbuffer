@@ -390,9 +390,11 @@ bool nalEntry::profile_tier_level(bitBuffer::iterator& bIter, uint32_t maxNumSub
 
     if (maxNumSubLayersMinus1 > 0) {
         for (size_t i = maxNumSubLayersMinus1 ; i < 8 ; i++) {
-            uint32_t reserved_zero_2bits = bIter.get_bits(2);
 #ifdef  _DEBUG
+            uint32_t reserved_zero_2bits = bIter.get_bits(2);
             fprintf(stderr,"reserved_zero_2bits                : %x\n", reserved_zero_2bits);
+#else
+            bIter.get_bits(2);
 #endif
         }
     }
@@ -445,7 +447,7 @@ bool nalEntry::profile_tier_level(bitBuffer::iterator& bIter, uint32_t maxNumSub
  */
 
 bool nalEntry::copy_nal_to_file(bitBuffer& buffer, FILE* oFP) {
-    uint8_t* pBuffer = buffer.m_pBufStart + (m_bit_offset / 8) - 4;
+    uint8_t* pBuffer = buffer.m_pBufStart + (m_bit_offset / 8) - (m_long_sc?4:3);
     fwrite(pBuffer, m_nalSize, 1, oFP);
 
     return true;

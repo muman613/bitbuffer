@@ -32,6 +32,13 @@ class hevcstream
         bool                    save_parm_set(FILE* oFP);
         bool                    save_nal_to_file(size_t nalindex, FILE* oFP);
 
+        bool                    get_ps_to_frame(size_t frame,
+                                                PARM_SET_ARRAY& vps,
+                                                PARM_SET_ARRAY& sps,
+                                                PARM_SET_ARRAY& pps);
+
+        bool                    get_nals_to_frame(size_t frame,
+                                                  NALENTRY_PTR_VECTOR& nalVec);
     protected:
         void                    parse_bitstream();
         void                    byte_stream_nal_unit();
