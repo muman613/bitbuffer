@@ -1,16 +1,16 @@
-SRC=bitbuffer.cpp
-OBJ=$(SRC:%.cpp=%.o)
+###############################################################################
+#	FILE		:	Makefile
+#	PROJECT		:	hevc-cut tool
+#	AUTHOR		:	Michael A. Uman <Michael_Uman@sigmadesigns.com>
+#	DATE		:	September 18, 2013
+###############################################################################
 
-#CFLAGS=-O2 -c
-CFLAGS=-g3 -c
+TARGET_TYPE=statlib
+CPP_SOURCES=bitbuffer.cpp
+LIBNAME=libbitbuffer
 
-%.o:%.cpp
-	g++ -o $*.o $(CFLAGS) $*.cpp
+CFLAGS=-Wall -O3 -fexpensive-optimizations 
+#CFLAGS=-g3 -c
 
-libbitbuffer.a : $(OBJ)
-	ar rcs libbitbuffer.a $(OBJ)
+include ../build/buildsys.mk
 
-bitbuffer.o : bitbuffer.cpp bitbuffer.h
-
-clean:
-	rm -rf libbitbuffer.a $(OBJ)
