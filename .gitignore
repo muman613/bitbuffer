@@ -4,4 +4,6 @@
 .gitignore
 *.save
 *.bak 
+*.log
+*.info
 
