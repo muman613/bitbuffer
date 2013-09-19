@@ -69,16 +69,20 @@ void hevcstream::byte_stream_nal_unit() {
 #endif
 
     while ((m_bIter.get_bits(24, false) != 0x000001) && (m_bIter.get_bits(32,false) != 0x00000001)) {
-        uint32_t leading_zero_bit = m_bIter.get_bits(8);
 #ifdef  _DEBUG
+        uint32_t leading_zero_bit = m_bIter.get_bits(8);
         fprintf(stderr, "leading_zero_bit %x\n", leading_zero_bit);
+#else
+        m_bIter.get_bits(8);
 #endif
     }
 
     if (m_bIter.get_bits(24, false) != 0x000001) {
-        uint32_t zero_byte = m_bIter.get_bits(8);
 #ifdef  _DEBUG
+        uint32_t zero_byte = m_bIter.get_bits(8);
         fprintf(stderr, "zero_byte %x\n", zero_byte);
+#else
+        m_bIter.get_bits(8);
 #endif
         bLongSC = true;
     }
@@ -87,10 +91,11 @@ void hevcstream::byte_stream_nal_unit() {
     fprintf(stderr, "24bit startcode starts at bitpos %ld (%lx)\n", m_bIter.pos(), m_bIter.pos()/8);
 #endif
 
-    uint32_t start_code_prefix_one_3bytes = m_bIter.get_bits(24);
-
 #ifdef  _DEBUG
+    uint32_t start_code_prefix_one_3bytes = m_bIter.get_bits(24);
     fprintf(stderr, "start_code_prefix_one_3bytes %06x\n", start_code_prefix_one_3bytes);
+#else
+    m_bIter.get_bits(24); // start_code_prefix_one_3bytes
 #endif
 
     //printf("STARTCODE @ bit %ld Byte 0x%lx!\n", m_bIter.pos(), m_bIter.pos()/8);
@@ -103,7 +108,12 @@ void hevcstream::byte_stream_nal_unit() {
 
 try {
     while ((m_bIter.get_bits(24, false) != 0x000001) && (m_bIter.get_bits(32,false) != 0x00000001)) {
+#ifdef  _DEBUG
         uint32_t trailing_zero_bit = m_bIter.get_bits(8);
+        fprintf("trailing_zero_bit %d\n", trailing_zero_bit);
+#else
+        m_bIter.get_bits(8);
+#endif
     }
 }
 catch (bitBuffer::out_of_range& exception) {
@@ -212,6 +222,11 @@ bool hevcstream::Open(std::string sInputFilename) {
         fprintf(stderr, "m_lastbit = %ld (Byte offset %08lx)\n", m_lastbit, m_lastbit/8);
 #endif
         parse_bitstream();
+
+#ifdef  _DEBUG
+        save_all_nals("/tmp/nalindex");
+#endif
+
         bRes = true;
     } else {
         fprintf(stderr, "ERROR: File does not exist!\n");
@@ -300,19 +315,33 @@ void hevcstream::dump_nal_vector(FILE* oFP, int type) {
  */
 
 void hevcstream::calculate_nal_sizes() {
-    uint64_t    bitDiff;
 #ifdef  _DEBUG
     fprintf(stderr, "-- CALCULATING NAL SIZES...\n");
 #endif
 
     /* Calculate NAL sizes */
     for (size_t x = 1 ; x < m_nalVec.size() ; x++) {
-        bitDiff = m_nalVec[x]->offset() - m_nalVec[x-1]->offset();
-        m_nalVec[x-1]->set_size(bitDiff / 8 + (m_nalVec[x]->m_long_sc?0:1));
+        uint64_t      bitoff1, bitoff2, byteoff1, byteoff2;
+        uint64_t      sizeofnal;
+
+        bitoff1 = m_nalVec[x]->offset() - (m_nalVec[x]->m_long_sc?32:24);
+        bitoff2 = m_nalVec[x-1]->offset() ; //- m_nalVec[x-1]->m_long_sc?32:24;
+        byteoff1 = bitoff1/8;
+        byteoff2 = bitoff2/8;
+        sizeofnal = byteoff1 - byteoff2;
+
+#ifdef _DEBUG
+        fprintf(stderr, "bitoff1 %ld (0x%lx) byteoff1 %ld (0x%lx)\n",
+                bitoff1, bitoff1, byteoff1, byteoff1);
+        fprintf(stderr, "bitoff2 %ld (0x%lx) byteoff2 %ld (0x%lx)\n",
+                bitoff2, bitoff2, byteoff2, byteoff2);
+        fprintf(stderr, "size = %ld (0x%lx)\n", sizeofnal, sizeofnal);
+#endif
+
+        m_nalVec[x-1]->set_size( sizeofnal );
     }
-//    fprintf(stderr, "-- calculate final nal --\n");
-//    fprintf(stderr, " m_lastbit = %ld\n", m_lastbit);
-//    fprintf(stderr, " last nal offset = %ld\n", m_nalVec[m_nalVec.size() - 1]->offset());
+
+    /* Calculate size of last NAL */
     m_nalVec[m_nalVec.size() - 1]->set_size((m_lastbit - m_nalVec[m_nalVec.size() - 1]->offset()) / 8);
 
     return;
@@ -392,7 +421,12 @@ bool hevcstream::get_ps_to_frame(size_t frame,
  *
  */
 
-bool hevcstream::get_nals_to_frame(size_t framenum, NALENTRY_PTR_VECTOR& nalVec) {
+bool hevcstream::get_nals_to_frame(size_t first_framenum,
+                                   size_t last_framenum,
+                                   NALENTRY_PTR_VECTOR& nalVec,
+                                   size_t& actual_first,
+                                   size_t& actual_last)
+{
     nalEntry            *pFirstIndex = 0L,
                         *pThisIndex = 0L;
     NALENTRY_PTR_VECTOR frameVec;
@@ -402,6 +436,7 @@ bool hevcstream::get_nals_to_frame(size_t framenum, NALENTRY_PTR_VECTOR& nalVec)
     fprintf(stderr, "hevcstream::get_nals_to_frame(%ld, ...)\n", framenum);
 #endif
 
+    /* Generate a vector of NAL's containing first frame in slice */
     for (size_t x = 0 ; x < m_nalVec.size() ; x++) {
         if (m_nalVec[x]->isFirstFrameInSlice()) {
             frameVec.push_back( m_nalVec[x] );
@@ -415,13 +450,19 @@ bool hevcstream::get_nals_to_frame(size_t framenum, NALENTRY_PTR_VECTOR& nalVec)
     }
 #endif
 
-    pThisIndex = frameVec[framenum];
+    /* Find the first BLA/IDR/CRA NAL which precedes the selected frame */
+    pThisIndex = frameVec[first_framenum];
 
-    for (size_t frame = framenum ; frame >= 0 ; frame--) {
+    for (size_t frame = first_framenum ; frame >= 0 ; frame--) {
         pFirstIndex = frameVec[frame];
         type        = pFirstIndex->nal_type();
 
         if ((type >= NAL_BLA_W_LP) && (type <= NAL_CRA_NUT)) {
+#ifdef _DEBUG
+            fprintf(stderr, "-- found first NAL @ %ld type %s\n",
+                    frame, get_nal_type_desc(frameVec[frame]->nal_type()));
+#endif
+            actual_first = frame;
             break;
         }
     }
@@ -433,19 +474,54 @@ bool hevcstream::get_nals_to_frame(size_t framenum, NALENTRY_PTR_VECTOR& nalVec)
 
     if (pFirstIndex != pThisIndex) {
         for (size_t x = pFirstIndex->nal_index_num() ; x < pThisIndex->nal_index_num() ; x++) {
+            type = m_nalVec[x]->nal_type();
 #ifdef  _DEBUG
             fprintf(stderr, "Copy NAL # %ld\n", x);
 #endif
-            if (m_nalVec[x]->isVCL())
+            if (m_nalVec[x]->isVCL() || ((type >= NAL_VPS_NUT) && (type <= NAL_PPS_NUT)))
                 nalVec.push_back( m_nalVec[x] );
         }
     }
-    for (size_t x = pThisIndex->nal_index_num() ; ((x < m_nalVec.size()) && (m_nalVec[x]->nal_picture_num() <= (framenum + 1))) ; x++) {
+    for (size_t x = pThisIndex->nal_index_num() ;
+         ((x < m_nalVec.size()) && (m_nalVec[x]->nal_picture_num() <= last_framenum)) ;
+         x++)
+    {
+        type = m_nalVec[x]->nal_type();
 #ifdef  _DEBUG
         fprintf(stderr, "Copy NAL # %ld\n", x);
 #endif
-        if (m_nalVec[x]->isVCL())
+        if (m_nalVec[x]->isVCL() || ((type >= NAL_VPS_NUT) && (type <= NAL_PPS_NUT)))
             nalVec.push_back( m_nalVec[x] );
     }
+
+    actual_last = last_framenum;
+
     return true;
 }
+
+#ifdef  _DEBUG
+void hevcstream::save_all_nals(std::string sOutDir) {
+#ifdef  _DEBUG
+    fprintf(stderr, "hevcstream::save_all_nals()\n");
+#endif
+    FILE* oFP = 0;
+    std::string sFilename;
+    char nameBuffer[128];
+
+    for (size_t x = 0 ; x < m_nalVec.size() ; x++) {
+        sFilename = sOutDir + "/";
+        snprintf(nameBuffer, 128, "NAL%06ld.bin", x);
+        sFilename += nameBuffer;
+
+        oFP = fopen( sFilename.c_str(), "w" );
+
+        if (oFP != 0)
+            m_nalVec[x]->copy_nal_to_file(*m_bitBuffer, oFP);
+
+        fclose(oFP);
+    }
+
+    return;
+}
+#endif
+

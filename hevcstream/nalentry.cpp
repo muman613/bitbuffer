@@ -447,8 +447,9 @@ bool nalEntry::profile_tier_level(bitBuffer::iterator& bIter, uint32_t maxNumSub
  */
 
 bool nalEntry::copy_nal_to_file(bitBuffer& buffer, FILE* oFP) {
-    uint8_t* pBuffer = buffer.m_pBufStart + (m_bit_offset / 8) - (m_long_sc?4:3);
-    fwrite(pBuffer, m_nalSize, 1, oFP);
+    size_t sclen = m_long_sc?4:3;
+    uint8_t* pBuffer = buffer.m_pBufStart + (m_bit_offset / 8) - sclen; // - (m_long_sc?4:3);
+    fwrite(pBuffer, m_nalSize + sclen , 1, oFP);
 
     return true;
 }
@@ -491,11 +492,12 @@ bool nalEntry::parse_nal(bitBuffer* pBuffer) {
     }
 
     if (m_nalSize < 4) {
-        fprintf(stderr, "ERROR: NAL too small to parse rbsp [type %s]...\n", get_nal_type_desc(m_nal_unit_header.nal_unit_type));
-        return false;
+//        fprintf(stderr, "ERROR: NAL too small to parse rbsp [type %s]...\n", get_nal_type_desc(m_nal_unit_header.nal_unit_type));
+        return true;
     }
 
-    bitBuffer*      rbsp_buffer = pBuffer->get_rbsp(m_bit_offset + 16, m_nalSize - 3);
+    //bitBuffer*      rbsp_buffer = pBuffer->get_rbsp(m_bit_offset + 16, m_nalSize - 3);
+    bitBuffer*      rbsp_buffer = pBuffer->get_rbsp(m_bit_offset + 16, m_nalSize);
     bitBuffer::iterator bIter = rbsp_buffer->begin(); // = pBuffer->bit_iterator( m_bit_offset ) + 16;
 
 #ifdef  _DEBUG

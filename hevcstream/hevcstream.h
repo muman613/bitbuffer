@@ -37,11 +37,18 @@ class hevcstream
                                                 PARM_SET_ARRAY& sps,
                                                 PARM_SET_ARRAY& pps);
 
-        bool                    get_nals_to_frame(size_t frame,
-                                                  NALENTRY_PTR_VECTOR& nalVec);
+        bool                    get_nals_to_frame(size_t first_frame,
+                                                  size_t last_frame,
+                                                  NALENTRY_PTR_VECTOR& nalVec,
+                                                  size_t& actual_first,
+                                                  size_t& actual_last);
     protected:
         void                    parse_bitstream();
         void                    byte_stream_nal_unit();
+
+#ifdef  _DEBUG
+        void                    save_all_nals(std::string sOutDir);
+#endif
 
     private:
         void                    clear_parameter_set_arrays();

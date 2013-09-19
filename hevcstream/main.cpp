@@ -1,55 +1,86 @@
+/**
+ *  @file           main.cpp
+ *  @author         Michael A. Uman
+ *  @date           September 18, 2013
+ *  @brief          Tool to cut HEVC encoded files.
+ */
+
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
+#include "hevc-cut.h"
 #include "hevcstream.h"
 
 using namespace std;
 
-
-string      sInputFilename;
-string      sOutputFilename;
-size_t      picture_num = -1;
-bool        bDump = false;
-
 /**
  *
+ */
+
+USER_OPTIONS    user_opt = {
+    "",                         // Input filename
+    "",                         // Output filename
+    "cut.info",                 // Report filename
+    -1,                         // First picture number
+    -1,                         // Last picture number
+    false                       // Dump option
+};
+
+void display_usage(char* sAppName) {
+    fprintf(stderr, "Usage: %s [-d] -i inputfile [-f first_picture_num] [-l last_picture_num] [-o outputfile] [-r reportfile]\n", sAppName);
+    return;
+}
+
+/**
+ *  Parse commandline arguments
  */
 
 bool parse_args(int argc, char* argv[]) {
     int     opt;
     bool    bRes = false;
 
-    while ((opt = getopt(argc, argv, "i:o:f:d")) != -1) {
+    while ((opt = getopt(argc, argv, "i:o:f:l:r:dh")) != -1) {
         switch (opt) {
         case 'i':
-            sInputFilename = optarg;
+            user_opt.sInputFilename = optarg;
             break;
 
         case 'o':
-            sOutputFilename = optarg;
+            user_opt.sOutputFilename = optarg;
             break;
 
         case 'f':
-            picture_num = atoi( optarg );
+            user_opt.first_picture_num = atoi( optarg );
+            break;
+
+        case 'l':
+            user_opt.last_picture_num = atoi( optarg );
             break;
 
         case 'd':
-            bDump = true;
+            user_opt.bDump = true;
             break;
 
-        default:
-            fprintf(stderr, "Usage: %s [-i filename] [-f picture_num] [-d]\n", argv[0]);
+        case 'r':
+            user_opt.sReportFilename = optarg;
             break;
+
+        case 'h':
+        default:
+            display_usage(argv[0]);
+            exit(-1);
         }
     }
 
 //    bRes = !sInputFilename.empty() && !sOutputFilename.empty();
 
-    bRes = !sInputFilename.empty();
-    if (!sOutputFilename.empty() && (picture_num == (size_t)-1)) {
+    bRes = !user_opt.sInputFilename.empty();
+    if (!user_opt.sOutputFilename.empty() && (user_opt.first_picture_num == (size_t)-1)) {
         bRes = false;
     }
-
+    if (user_opt.last_picture_num == (size_t)-1) {
+        user_opt.last_picture_num = user_opt.first_picture_num + 1;
+    }
     return bRes;
 }
 
@@ -95,17 +126,49 @@ void save_nals(hevcstream& hevcObj, FILE* oFP, NALENTRY_PTR_VECTOR& nalVec) {
 
     return;
 }
+
+/**
+ *  Print a short header identifying the application.
+ */
+
+void display_header() {
+    printf("hevc-cut : Version %d.%d Release %d built %s\n",
+           TOOL_VERSION_MAJOR, TOOL_VERSION_MINOR, TOOL_VERSION_RELEASE,
+           __TIMESTAMP__);
+    return;
+}
+
+void generate_report(hevcstream& hevcObj) {
+    FILE* oFP = 0L;
+
+#ifdef  _DEBUG
+    fprintf(stderr, "generate_report()\n");
+#endif
+
+    oFP = fopen(user_opt.sReportFilename.c_str(), "w");
+
+    if (oFP) {
+        hevcObj.dump_nal_vector( oFP, nalEntry::DUMP_SHORT );
+        fclose(oFP);
+    }
+
+    return;
+}
+
 /**
  *
  */
 
 int main(int argc, char* argv[]) {
+    int             nRes = 0;
     hevcstream      hevcObj;
 
     if (!parse_args(argc, argv)) {
-        fprintf(stderr, "ERROR: Must specify input [-i] and output [-o] filenames!\n");
+        fprintf(stderr, "Exiting due to invalid arguments!\n");
         return -10;
     }
+
+    display_header();
 
 #ifdef  _DEBUG
     fprintf(stderr, "sInputFilename  = %s\n"
@@ -116,16 +179,29 @@ int main(int argc, char* argv[]) {
                     picture_num);
 #endif
 
-    if (hevcObj.Open( sInputFilename )) {
-        if (bDump)
+    if (hevcObj.Open( user_opt.sInputFilename )) {
+        if (user_opt.bDump)
             hevcObj.dump_nal_vector( stdout, nalEntry::DUMP_SHORT | nalEntry::DUMP_EXTRA );
 
-        if (!sOutputFilename.empty()) {
+        if (!user_opt.sReportFilename.empty()) {
+            generate_report( hevcObj );
+        }
+
+        /* Generate cut file */
+        if (!user_opt.sOutputFilename.empty()) {
             PARM_SET_ARRAY          vpsAr, spsAr, ppsAr;
             NALENTRY_PTR_VECTOR     nalVec;
+            size_t                  actual_first, actual_last;
 
-            hevcObj.get_ps_to_frame( picture_num, vpsAr, spsAr, ppsAr );
-            hevcObj.get_nals_to_frame( picture_num, nalVec );
+            hevcObj.get_ps_to_frame( user_opt.first_picture_num, vpsAr, spsAr, ppsAr );
+            hevcObj.get_nals_to_frame( user_opt.first_picture_num,
+                                       user_opt.last_picture_num,
+                                       nalVec,
+                                       actual_first,
+                                       actual_last );
+
+
+            printf("Copying from frame %ld to frame %ld...\n", actual_first, actual_last);
 
 #ifdef  _DEBUG
             dump_parm_set(stdout, "VIDEO PARAMETER SETS:",    vpsAr);
@@ -133,19 +209,19 @@ int main(int argc, char* argv[]) {
             dump_parm_set(stdout, "PICTURE PARAMETER SETS:",  ppsAr);
 #endif
 
-            FILE* oFP = fopen(sOutputFilename.c_str(), "w");
+            FILE* oFP = fopen(user_opt.sOutputFilename.c_str(), "w");
 
             if (oFP != 0) {
-
                 save_parm_set(hevcObj, oFP, vpsAr, spsAr, ppsAr);
                 save_nals(hevcObj, oFP, nalVec);
-
                 fclose(oFP);
             } else {
                 /* */
+                fprintf(stderr, "ERROR: Unable to open output file!\n");
+                nRes = -10;
             }
         }
     }
 
-    return 0;
+    return nRes;
 }
