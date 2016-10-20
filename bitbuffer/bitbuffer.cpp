@@ -294,7 +294,7 @@ bitBuffer*  bitBuffer::get_rbsp(uint64_t bitPos, size_t byteCount) {
     uint8_t*        rawBuffer = 0L;
     size_t          numBytesInRbsp = 0;
     iterator        bIter = bit_iterator(bitPos);
-    uint32_t        emulation_prevention_three_byte;
+    uint32_t        emulation_prevention_three_byte __attribute__((unused));
 
 #ifdef  _DEBUG
     fprintf(stderr, "bitBuffer::get_rbsp(%ld, %ld)\n", bitPos, byteCount);

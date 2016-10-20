@@ -1,16 +1,25 @@
 ###############################################################################
 #	FILE		:	Makefile
-#	PROJECT		:	hevc-cut tool
+#	PROJECT		:	bitbuffer library
 #	AUTHOR		:	Michael A. Uman <Michael_Uman@sigmadesigns.com>
 #	DATE		:	September 18, 2013
 ###############################################################################
 
 TARGET_TYPE=statlib
 CPP_SOURCES=bitbuffer.cpp
-LIBNAME=libbitbuffer
+ARCH?=$(shell arch)
+ifdef DEBUG
+	LIBNAME=libbitbufferd
+else
+	LIBNAME=libbitbuffer
+endif
 
 CFLAGS=-Wall -O3 -fexpensive-optimizations 
 #CFLAGS=-g3 -c
 
-include ../build/buildsys.mk
+LIB_DIR=../lib/$(ARCH)/
+
+include ../../build/Build/buildsys.mk
+
+-include $(DEPS)
 

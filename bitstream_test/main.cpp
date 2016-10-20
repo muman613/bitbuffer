@@ -7,7 +7,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include "bitbuffer.h"
-#include "random.h"
+//#include "random.h"
 
 using namespace std;
 

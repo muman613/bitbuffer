@@ -1,19 +1,26 @@
-TARGET=bitstream_test
-SRC=main.cpp
-OBJ=$(SRC:%.cpp=%.o)
-HEADERS=
-LDFLAGS=-g3
-LIBS=../bitbuffer/libbitbuffer.a
+###############################################################################
+#	FILE		:	Makefile
+#	PROJECT		:	bitstream test app
+#	AUTHOR		:	Michael A. Uman <Michael_Uman@sigmadesigns.com>
+#	DATE		:	October 20, 2016
+###############################################################################
 
-#CFLAGS=-O2 -c
-CFLAGS=-g3 -c -I ../bitbuffer
+TARGET_TYPE=exe
+TARGET_EXE=bitstream_test
+CPP_SOURCES=main.cpp
+ARCH?=$(shell arch)
 
-%.o:%.cpp
-	g++ -o $*.o $(CFLAGS) $*.cpp
+BITBUFFER_INC=-I ../bitbuffer
+ifdef DEBUG
+	BITBUFFER_LIBS=../lib/$(ARCH)/libbitbufferd.a
+else
+	BITBUFFER_LIBS=../lib/$(ARCH)/libbitbuffer.a
+endif
 
-$(TARGET) : $(OBJ) $(HEADERS)
-	g++ -o $(TARGET) $(LDFLAGS) $(OBJ) $(LIBS)
+CFLAGS=-Wall -O3 -fexpensive-optimizations $(BITBUFFER_INC)
+LDFLAGS=$(BITBUFFER_LIBS)
 
-clean:
-	rm -rf $(TARGET) $(OBJ)
+include ../../build/Build/buildsys.mk
+
+-include $(DEPS)
 
